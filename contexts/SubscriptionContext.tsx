@@ -50,13 +50,30 @@ const PLAN_PRICES: Record<string, { amount: string; type: 'weekly' | 'monthly' |
   '$rc_annual': { amount: '$59.99', type: 'yearly' },
 };
 
+function formatPriceString(priceString: string, packageType: string): string {
+  const expectedPrices: Record<string, string> = {
+    '$rc_weekly': '$4.99',
+    '$rc_monthly': '$9.99',
+    '$rc_annual': '$59.99',
+  };
+  if (expectedPrices[packageType]) {
+    return expectedPrices[packageType];
+  }
+  if (priceString.startsWith('$')) return priceString;
+  const match = priceString.match(/([\d.,]+)/);
+  if (match) {
+    return '$' + match[1];
+  }
+  return priceString;
+}
+
 const MOCK_PACKAGES: SubscriptionPackage[] = [
   {
     identifier: 'ronaldify_weekly',
     packageType: '$rc_weekly',
     product: {
       identifier: 'ronaldify_weekly',
-      title: 'Weekly',
+      title: 'Weekly Pro',
       description: '$4.99/week',
       priceString: '$4.99',
       price: 4.99,
@@ -68,7 +85,7 @@ const MOCK_PACKAGES: SubscriptionPackage[] = [
     packageType: '$rc_monthly',
     product: {
       identifier: 'ronaldify_monthly',
-      title: 'Monthly',
+      title: 'Monthly Pro',
       description: '$9.99/month',
       priceString: '$9.99',
       price: 9.99,
@@ -80,7 +97,7 @@ const MOCK_PACKAGES: SubscriptionPackage[] = [
     packageType: '$rc_annual',
     product: {
       identifier: 'ronaldify_yearly',
-      title: 'Yearly',
+      title: 'Yearly Pro',
       description: '$59.99/year',
       priceString: '$59.99',
       price: 59.99,
@@ -219,14 +236,12 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       console.log('Purchase successful');
       queryClient.setQueryData(['customerInfo'], customerInfo);
       
-      // Generate a unique transaction ID for this purchase
       const purchaseTimestamp = Date.now();
       const productId = customerInfo.allPurchasedProductIdentifiers?.[customerInfo.allPurchasedProductIdentifiers.length - 1] || 'unknown';
       const transactionId = `${productId}_${purchaseTimestamp}`;
       
       console.log('Sending notification with transaction ID:', transactionId);
       
-      // Send notification immediately without awaiting to prevent blocking
       sendSubscriptionNotification(packageType, transactionId, false).catch(err => {
         console.log('Notification send failed:', err);
       });
@@ -263,7 +278,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       identifier: pkg.product.identifier,
       title: pkg.product.title,
       description: pkg.product.description,
-      priceString: pkg.product.priceString,
+      priceString: formatPriceString(pkg.product.priceString, pkg.packageType),
       price: pkg.product.price,
     },
     rcPackage: pkg,
