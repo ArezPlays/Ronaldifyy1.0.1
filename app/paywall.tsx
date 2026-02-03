@@ -28,16 +28,16 @@ import { useTheme } from '@/contexts/ThemeContext';
 
 
 
-function getPackageLabelKey(identifier: string): 'weekly' | 'monthly' | 'yearly' {
-  if (identifier.includes('weekly') || identifier === '$rc_weekly') return 'weekly';
-  if (identifier.includes('monthly') || identifier === '$rc_monthly') return 'monthly';
-  if (identifier.includes('annual') || identifier.includes('yearly') || identifier === '$rc_annual') return 'yearly';
+function getPackageLabelKey(packageType: string): 'weekly' | 'monthly' | 'yearly' {
+  if (packageType === '$rc_weekly') return 'weekly';
+  if (packageType === '$rc_monthly') return 'monthly';
+  if (packageType === '$rc_annual') return 'yearly';
   return 'monthly';
 }
 
-function getPackageSavingsKey(identifier: string): 'popular' | 'bestValue' | null {
-  if (identifier.includes('monthly') || identifier === '$rc_monthly') return 'popular';
-  if (identifier.includes('annual') || identifier.includes('yearly') || identifier === '$rc_annual') return 'bestValue';
+function getPackageSavingsKey(packageType: string): 'popular' | 'bestValue' | null {
+  if (packageType === '$rc_monthly') return 'popular';
+  if (packageType === '$rc_annual') return 'bestValue';
   return null;
 }
 
@@ -54,7 +54,7 @@ export default function PaywallScreen() {
   const { colors } = useTheme();
   
   const [selectedPackage, setSelectedPackage] = useState<SubscriptionPackage | null>(
-    packages.find(p => p.identifier.includes('monthly') || p.packageType === '$rc_monthly') || packages[0] || null
+    packages.find(p => p.packageType === '$rc_annual') || packages[0] || null
   );
   
   const PRO_FEATURES = [
@@ -66,8 +66,8 @@ export default function PaywallScreen() {
 
   React.useEffect(() => {
     if (packages.length > 0 && !selectedPackage) {
-      const monthly = packages.find(p => p.identifier.includes('monthly') || p.packageType === '$rc_monthly');
-      setSelectedPackage(monthly || packages[0]);
+      const yearly = packages.find(p => p.packageType === '$rc_annual');
+      setSelectedPackage(yearly || packages[0]);
     }
   }, [packages, selectedPackage]);
 
@@ -117,13 +117,13 @@ export default function PaywallScreen() {
 
   const isProcessing = isPurchasing || isRestoring;
   
-  const getPackageLabel = (identifier: string): string => {
-    const key = getPackageLabelKey(identifier);
+  const getPackageLabel = (packageType: string): string => {
+    const key = getPackageLabelKey(packageType);
     return t[key];
   };
   
-  const getPackageSavings = (identifier: string): string | null => {
-    const key = getPackageSavingsKey(identifier);
+  const getPackageSavings = (packageType: string): string | null => {
+    const key = getPackageSavingsKey(packageType);
     if (key === 'popular') return t.popular;
     if (key === 'bestValue') return t.bestValue;
     return null;
@@ -189,8 +189,8 @@ export default function PaywallScreen() {
             <View style={dynamicStyles.packagesContainer}>
               {packages.map((pkg) => {
                 const isSelected = selectedPackage?.identifier === pkg.identifier;
-                const label = getPackageLabel(pkg.identifier);
-                const savings = getPackageSavings(pkg.identifier);
+                const label = getPackageLabel(pkg.packageType);
+                const savings = getPackageSavings(pkg.packageType);
                 
                 return (
                   <TouchableOpacity
@@ -258,7 +258,7 @@ export default function PaywallScreen() {
                 <ActivityIndicator size="small" color={colors.black} />
               ) : (
                 <Text style={dynamicStyles.ctaText}>
-                  {isMockPackage ? t.next : `${t.continueWith} ${selectedPackage ? getPackageLabel(selectedPackage.identifier) : ''}`}
+                  {isMockPackage ? t.next : `${t.continueWith} ${selectedPackage ? getPackageLabel(selectedPackage.packageType) : ''}`}
                 </Text>
               )}
             </LinearGradient>

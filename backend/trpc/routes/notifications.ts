@@ -73,7 +73,8 @@ export const notificationsRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const { transactionId, userName, planType, amount } = input;
       
-      const message = `💎 - New Subscription on Ronaldify`;
+      const planEmoji = planType === 'yearly' ? '🏆' : planType === 'monthly' ? '⭐' : '✨';
+      const message = `💰 <b>New Subscription!</b>\n\n${planEmoji} <b>Plan:</b> ${planType.charAt(0).toUpperCase() + planType.slice(1)}\n💵 <b>Amount:</b> ${amount}\n👤 <b>User:</b> ${userName}\n\n🎉 Ronaldify is growing!`;
       
       console.log('[Notification] Received subscription notification request');
       console.log('[Notification] User:', userName, 'Plan:', planType, 'Amount:', amount);
