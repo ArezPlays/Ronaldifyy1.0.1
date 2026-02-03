@@ -11,7 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { 
   Clock, 
@@ -38,6 +38,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function DrillsScreen() {
   const router = useRouter();
+  const { openSkill } = useLocalSearchParams<{ openSkill?: string }>();
   const { isPro } = useSubscription();
   const { colors } = useTheme();
   const { t } = useLanguage();
@@ -53,6 +54,7 @@ export default function DrillsScreen() {
   } = useTraining();
   
   const [selectedSkill, setSelectedSkill] = useState<TrainingGoal | null>(null);
+  const hasOpenedSkillRef = useRef(false);
   const [selectedLevel, setSelectedLevel] = useState<SkillMasteryLevel | null>(null);
   const [showCongrats, setShowCongrats] = useState(false);
   const [completedLevelInfo, setCompletedLevelInfo] = useState<{ skillName: string; levelName: string; xpReward: number } | null>(null);
@@ -63,6 +65,16 @@ export default function DrillsScreen() {
     if (!selectedSkill) return null;
     return SKILL_MASTERY_PATHS.find(p => p.id === selectedSkill);
   }, [selectedSkill]);
+
+  useEffect(() => {
+    if (openSkill && !hasOpenedSkillRef.current) {
+      const validSkills: TrainingGoal[] = ['dribbling', 'shooting', 'passing', 'speed', 'defense', 'fitness'];
+      if (validSkills.includes(openSkill as TrainingGoal)) {
+        setSelectedSkill(openSkill as TrainingGoal);
+        hasOpenedSkillRef.current = true;
+      }
+    }
+  }, [openSkill]);
 
   useEffect(() => {
     const currentCompleted = new Set(progress.completedDrills);

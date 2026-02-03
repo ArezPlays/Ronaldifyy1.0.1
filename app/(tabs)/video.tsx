@@ -29,7 +29,9 @@ interface VideoAnalysis {
   status: 'uploading' | 'processing' | 'analyzing' | 'completed' | 'error';
   progress: number;
   analysis: {
+    coachGreeting: string;
     overall: string;
+    coachMotivation: string;
     isFootballVideo: boolean;
     visibleCategories: string[];
     dribbling: number | null;
@@ -38,26 +40,39 @@ interface VideoAnalysis {
     positioning: number | null;
     movement: number | null;
     tips: string[];
-    suggestedDrills: string[];
+    recommendedSkillPaths: string[];
     strengthAreas: string[];
     weaknessAreas: string[];
   } | null;
   createdAt: Date;
 }
 
+type SkillCategory = 'dribbling' | 'shooting' | 'passing' | 'speed' | 'defense' | 'fitness';
+
+const SKILL_CATEGORY_INFO: Record<SkillCategory, { emoji: string; title: string; color: string }> = {
+  dribbling: { emoji: '⚡', title: 'Dribbling Mastery', color: '#FF6B35' },
+  shooting: { emoji: '🎯', title: 'Shooting Mastery', color: '#E74C3C' },
+  passing: { emoji: '🎪', title: 'Passing Mastery', color: '#3498DB' },
+  speed: { emoji: '💨', title: 'Speed Training', color: '#9B59B6' },
+  defense: { emoji: '🛡️', title: 'Defensive Skills', color: '#27AE60' },
+  fitness: { emoji: '💪', title: 'Fitness Program', color: '#F39C12' },
+};
+
 const analysisSchema = z.object({
   isFootballVideo: z.boolean().describe('Is this football/soccer training or gameplay footage?'),
   visibleCategories: z.array(z.enum(['dribbling', 'passing', 'shooting', 'positioning', 'movement'])).describe('Which skills are demonstrated in this footage'),
-  overall: z.string().describe('Coach feedback: 3-4 sentences talking directly to the player about their performance. Be specific - mention body position, foot technique, timing, decision-making. Example: "Good effort on that shot! I noticed your standing foot was too far from the ball which affected your accuracy. Your follow-through was solid though."'),
+  coachGreeting: z.string().describe('A short, energetic coach greeting with emoji. Example: "Oi mate! 🔥" or "Let\'s break this down! ⚽" or "Great effort champion! 💪"'),
+  overall: z.string().describe('Coach feedback in 3-4 punchy sentences. Talk like a real football coach - direct, motivating, specific. Use football terminology. Mention body mechanics, technique details, timing. Be encouraging but honest. Example: "That\'s what I\'m talking about - you\'re attacking the ball with intent! Your body shape on approach is solid, but watch that standing foot - it\'s drifting too far back which is killing your accuracy. The power is there mate, now let\'s dial in the precision."'),
+  coachMotivation: z.string().describe('A short motivational closing line with emoji. Example: "Keep grinding, the goals will come! ⚽🔥" or "You\'re on the right track - trust the process! 💯"'),
   dribbling: z.number().nullable().describe('Rate 0-100 ONLY if ball control/dribbling is shown, otherwise null'),
   passing: z.number().nullable().describe('Rate 0-100 ONLY if passing/distribution is shown, otherwise null'),
   shooting: z.number().nullable().describe('Rate 0-100 ONLY if shooting/finishing is shown, otherwise null'),
   positioning: z.number().nullable().describe('Rate 0-100 ONLY if tactical positioning is visible, otherwise null'),
   movement: z.number().nullable().describe('Rate 0-100 ONLY if off-ball movement or running technique is shown, otherwise null'),
-  tips: z.array(z.string()).describe('4 specific coaching tips written as direct advice. Example: "Plant your standing foot closer to the ball for better shot accuracy" NOT "The player should improve their foot placement"'),
-  suggestedDrills: z.array(z.string()).describe('3 specific drill names that address the weaknesses observed'),
-  strengthAreas: z.array(z.string()).describe('2-3 specific things done well. Example: "Strong shooting power" or "Good first touch"'),
-  weaknessAreas: z.array(z.string()).describe('2-3 specific areas to improve. Example: "Body positioning during shots" or "Ball control under pressure"'),
+  tips: z.array(z.string()).describe('4 specific coaching tips as direct commands. Use "you" language. Example: "Lock that ankle when you strike - no wobble!" or "Get your head over the ball to keep it down"'),
+  recommendedSkillPaths: z.array(z.enum(['dribbling', 'shooting', 'passing', 'speed', 'defense', 'fitness'])).describe('1-2 skill training paths from our app that would help this player improve based on weaknesses. Choose from: dribbling, shooting, passing, speed, defense, fitness'),
+  strengthAreas: z.array(z.string()).describe('2-3 specific things done well with emoji prefix. Example: "💪 Strong shooting power" or "✨ Excellent first touch"'),
+  weaknessAreas: z.array(z.string()).describe('2-3 specific areas to improve with emoji prefix. Example: "📍 Body positioning during shots" or "🎯 Ball control under pressure"'),
 });
 
 const ANALYSIS_CATEGORIES = [
@@ -160,27 +175,28 @@ export default function VideoScreen() {
         image: frame,
       }));
 
-      const analysisPrompt = `You are a professional football coach watching a player's training clip. Give feedback as if you're standing on the pitch talking directly to this player.
+      const analysisPrompt = `You are a REAL professional football coach - think Guardiola's attention to detail mixed with Klopp's energy and passion. You're watching a player's training clip and giving feedback like you're right there on the pitch with them.
 
-YOUR COACHING APPROACH:
-- Talk TO the player, not about them ("Your shot was powerful" not "The player's shot was powerful")
-- Be specific about technique: foot position, body angle, timing, balance, follow-through
-- Notice the details: How did they strike the ball? Where was their head? How was their balance?
-- Be encouraging but honest - celebrate what's good, be clear about what needs work
-- Give actionable advice they can practice tomorrow
+YOUR COACHING PERSONALITY:
+- You're passionate, direct, and genuinely invested in this player's development
+- Use football terminology naturally ("strike through the ball", "get your body over it", "plant foot", "follow through")
+- Mix praise with constructive criticism - sandwich method works
+- Use emojis sparingly but effectively to add energy 🔥⚽💪
+- Be specific about mechanics: foot position, hip rotation, head position, balance, timing
+- Sound like a real coach, not a textbook
+
+EXAMPLE TONE:
+"Oi, that's the aggression I want to see! 🔥 You're really attacking that ball. Now look - your standing foot is pointing away from target, that's why the ball is going wide. Plant it towards goal, get your hips through, and that same power becomes a rocket into the corner. The technique is 80% there mate, we just need to tighten up that base."
 
 CRITICAL RULES:
 1. If this is NOT football content, mark isFootballVideo as false
-2. ONLY rate skills that are actually demonstrated:
-   - See a shot? Rate shooting. No shot? shooting = null
-   - See dribbling? Rate it. No dribbling? dribbling = null
-   - Same for passing, positioning, movement
-3. Never give a score for something not shown in the clip
-4. Be specific - "good power on the shot" is better than "nice technique"
+2. ONLY rate skills actually demonstrated - null for anything not shown
+3. For recommendedSkillPaths: suggest 1-2 training paths from our app that would help based on what you see needs work. Options are: dribbling, shooting, passing, speed, defense, fitness
+4. Be specific and actionable - they should know exactly what to work on tomorrow
 
 Player Info: ${userContext}
 
-Watch this footage carefully and give your honest coaching assessment. What did they do well? What specific adjustments would improve their game?`;
+Watch carefully and give your honest, energetic coaching assessment!`;
 
       updateAnalysisProgress(analysisId, 'analyzing', 75);
 
@@ -359,27 +375,40 @@ Watch this footage carefully and give your honest coaching assessment. What did 
       <View key={analysis.id} style={styles.analysisCard}>
         <View style={styles.analysisHeader}>
           <CheckCircle size={20} color={colors.primary} />
-          <Text style={styles.analysisTitle}>Analysis Complete</Text>
+          <Text style={styles.analysisTitle}>Coach Analysis ⚽</Text>
         </View>
 
-        <Text style={styles.overallText}>{analysis.analysis.overall}</Text>
+        {/* Coach Greeting */}
+        <View style={styles.coachGreetingContainer}>
+          <Text style={styles.coachGreeting}>{analysis.analysis.coachGreeting}</Text>
+        </View>
+
+        {/* Main Feedback */}
+        <View style={styles.coachFeedbackContainer}>
+          <Text style={styles.overallText}>{analysis.analysis.overall}</Text>
+        </View>
+
+        {/* Coach Motivation */}
+        <View style={styles.coachMotivationContainer}>
+          <Text style={styles.coachMotivation}>{analysis.analysis.coachMotivation}</Text>
+        </View>
 
         {/* Strengths & Weaknesses */}
         {(analysis.analysis.strengthAreas || analysis.analysis.weaknessAreas) && (
           <View style={styles.strengthWeaknessContainer}>
             {analysis.analysis.strengthAreas && analysis.analysis.strengthAreas.length > 0 && (
               <View style={styles.strengthSection}>
-                <Text style={styles.strengthTitle}>💪 Strengths</Text>
+                <Text style={styles.strengthTitle}>What&apos;s Working</Text>
                 {analysis.analysis.strengthAreas.map((area, idx) => (
-                  <Text key={idx} style={styles.strengthItem}>• {area}</Text>
+                  <Text key={idx} style={styles.strengthItem}>{area}</Text>
                 ))}
               </View>
             )}
             {analysis.analysis.weaknessAreas && analysis.analysis.weaknessAreas.length > 0 && (
               <View style={styles.weaknessSection}>
-                <Text style={styles.weaknessTitle}>🎯 Focus Areas</Text>
+                <Text style={styles.weaknessTitle}>Work On This</Text>
                 {analysis.analysis.weaknessAreas.map((area, idx) => (
-                  <Text key={idx} style={styles.weaknessItem}>• {area}</Text>
+                  <Text key={idx} style={styles.weaknessItem}>{area}</Text>
                 ))}
               </View>
             )}
@@ -388,7 +417,7 @@ Watch this footage carefully and give your honest coaching assessment. What did 
 
         {analysis.analysis.visibleCategories && analysis.analysis.visibleCategories.length > 0 && (
           <View style={styles.scoresContainer}>
-            <Text style={styles.scoresTitle}>📊 Skills Observed in Video</Text>
+            <Text style={styles.scoresTitle}>📊 Performance Ratings</Text>
             {ANALYSIS_CATEGORIES.map(cat => {
               const score = analysis.analysis![cat.id as keyof typeof analysis.analysis];
               if (typeof score !== 'number') return null;
@@ -398,29 +427,39 @@ Watch this footage carefully and give your honest coaching assessment. What did 
         )}
 
         <View style={styles.tipsContainer}>
-          <Text style={styles.tipsTitle}>💡 Improvement Tips</Text>
+          <Text style={styles.tipsTitle}>🎯 Coach&apos;s Tips</Text>
           {analysis.analysis.tips.map((tip, idx) => (
             <View key={idx} style={styles.tipItem}>
-              <View style={styles.tipBullet} />
+              <Text style={styles.tipNumber}>{idx + 1}</Text>
               <Text style={styles.tipText}>{tip}</Text>
             </View>
           ))}
         </View>
 
-        {/* Suggested Drills */}
-        {analysis.analysis.suggestedDrills && analysis.analysis.suggestedDrills.length > 0 && (
-          <View style={styles.suggestedDrillsContainer}>
-            <Text style={styles.suggestedDrillsTitle}>🏃 Recommended Drills</Text>
-            {analysis.analysis.suggestedDrills.map((drill, idx) => (
-              <TouchableOpacity 
-                key={idx} 
-                style={styles.suggestedDrillItem}
-                onPress={() => router.push('/(tabs)/drills')}
-              >
-                <Text style={styles.suggestedDrillText}>{drill}</Text>
-                <Text style={styles.suggestedDrillArrow}>→</Text>
-              </TouchableOpacity>
-            ))}
+        {/* Recommended Skill Training Paths */}
+        {analysis.analysis.recommendedSkillPaths && analysis.analysis.recommendedSkillPaths.length > 0 && (
+          <View style={styles.skillPathsContainer}>
+            <Text style={styles.skillPathsTitle}>🚀 Recommended Training</Text>
+            <Text style={styles.skillPathsSubtitle}>Tap to start your training journey</Text>
+            {analysis.analysis.recommendedSkillPaths.map((skillId, idx) => {
+              const skillInfo = SKILL_CATEGORY_INFO[skillId as SkillCategory];
+              if (!skillInfo) return null;
+              return (
+                <TouchableOpacity 
+                  key={idx} 
+                  style={[styles.skillPathItem, { borderLeftColor: skillInfo.color }]}
+                  onPress={() => router.push({ pathname: '/(tabs)/drills', params: { openSkill: skillId } })}
+                >
+                  <View style={[styles.skillPathIcon, { backgroundColor: `${skillInfo.color}20` }]}>
+                    <Text style={styles.skillPathEmoji}>{skillInfo.emoji}</Text>
+                  </View>
+                  <View style={styles.skillPathContent}>
+                    <Text style={styles.skillPathName}>{skillInfo.title}</Text>
+                    <Text style={styles.skillPathCta}>Start training →</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
       </View>
@@ -794,17 +833,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 10,
     marginBottom: 10,
   },
-  tipBullet: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.primary,
-    marginTop: 7,
-  },
   tipText: {
     flex: 1,
     fontSize: 14,
-    color: colors.textSecondary,
+    color: colors.text,
     lineHeight: 20,
   },
   progressContainer: {
@@ -881,56 +913,122 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   strengthTitle: {
     fontSize: 13,
-    fontWeight: '700' as const,
+    fontWeight: '800' as const,
     color: colors.success,
-    marginBottom: 8,
+    marginBottom: 10,
+    letterSpacing: 0.3,
   },
   weaknessTitle: {
     fontSize: 13,
-    fontWeight: '700' as const,
+    fontWeight: '800' as const,
     color: colors.warning,
-    marginBottom: 8,
+    marginBottom: 10,
+    letterSpacing: 0.3,
   },
   strengthItem: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: 6,
+    lineHeight: 18,
   },
   weaknessItem: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: 6,
+    lineHeight: 18,
   },
-  suggestedDrillsContainer: {
+  coachGreetingContainer: {
+    marginBottom: 12,
+  },
+  coachGreeting: {
+    fontSize: 20,
+    fontWeight: '800' as const,
+    color: colors.primary,
+  },
+  coachFeedbackContainer: {
+    backgroundColor: `${colors.primary}08`,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+  },
+  coachMotivationContainer: {
+    backgroundColor: `${colors.accent}15`,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  coachMotivation: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: colors.accent,
+    textAlign: 'center',
+  },
+  tipNumber: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.primary,
+    color: '#000000',
+    fontSize: 12,
+    fontWeight: '700' as const,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginRight: 10,
+    overflow: 'hidden',
+  },
+  skillPathsContainer: {
     backgroundColor: `${colors.primary}10`,
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
     marginTop: 16,
   },
-  suggestedDrillsTitle: {
-    fontSize: 15,
-    fontWeight: '700' as const,
+  skillPathsTitle: {
+    fontSize: 17,
+    fontWeight: '800' as const,
     color: colors.text,
-    marginBottom: 12,
+    marginBottom: 4,
   },
-  suggestedDrillItem: {
+  skillPathsSubtitle: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: 14,
+  },
+  skillPathItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: colors.surface,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderLeftWidth: 4,
   },
-  suggestedDrillText: {
-    fontSize: 14,
-    color: colors.text,
+  skillPathIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  skillPathEmoji: {
+    fontSize: 22,
+  },
+  skillPathContent: {
     flex: 1,
   },
-  suggestedDrillArrow: {
+  skillPathName: {
     fontSize: 16,
-    color: colors.primary,
+    fontWeight: '700' as const,
+    color: colors.text,
+    marginBottom: 2,
+  },
+  skillPathCta: {
+    fontSize: 13,
     fontWeight: '600' as const,
+    color: colors.primary,
   },
   featuresSection: {
     marginBottom: 24,
