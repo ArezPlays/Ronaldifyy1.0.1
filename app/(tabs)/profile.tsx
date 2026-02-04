@@ -182,7 +182,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
 
           <View style={styles.versionContainer}>
-            <Text style={styles.version}>Version 1.0.0</Text>
+            <Text style={styles.version}>Version 1.0.1</Text>
             <Text style={styles.madeBy}>Made By Arez :)</Text>
           </View>
         </ScrollView>
