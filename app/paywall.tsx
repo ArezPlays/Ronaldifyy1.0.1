@@ -69,9 +69,13 @@ export default function PaywallScreen() {
   ];
 
   React.useEffect(() => {
-    if (packages.length > 0 && !selectedPackage) {
+    if (packages.length > 0) {
       const yearly = packages.find(p => p.packageType === '$rc_annual');
-      setSelectedPackage(yearly || packages[0]);
+      const newSelected = yearly || packages[0];
+      if (!selectedPackage || !selectedPackage.rcPackage) {
+        console.log('Setting selected package to:', newSelected.identifier, 'hasRcPackage:', !!newSelected.rcPackage);
+        setSelectedPackage(newSelected);
+      }
     }
   }, [packages, selectedPackage]);
 

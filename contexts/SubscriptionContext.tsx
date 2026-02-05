@@ -32,16 +32,22 @@ function configureRevenueCat() {
   try {
     const apiKey = getRCApiKey();
     if (apiKey) {
-      console.log('Configuring RevenueCat with API key');
+      console.log('Configuring RevenueCat with API key for platform:', Platform.OS);
       Purchases.configure({ apiKey });
       isConfigured = true;
+      console.log('RevenueCat configured successfully');
       return true;
+    } else {
+      console.log('No RevenueCat API key available for platform:', Platform.OS);
     }
   } catch (error) {
     console.log('Error configuring RevenueCat:', error);
   }
   return false;
 }
+
+const rcConfiguredAtTopLevel = configureRevenueCat();
+console.log('RevenueCat top-level configuration result:', rcConfiguredAtTopLevel);
 
 export interface SubscriptionPackage {
   identifier: string;
@@ -154,22 +160,19 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [authUser, setAuthUser] = useState<{ uid: string; displayName: string | null; email: string } | null>(null);
   const [isPurchasing, setIsPurchasing] = useState(false);
-  const [rcConfigured, setRcConfigured] = useState(false);
+  const [rcConfigured, setRcConfigured] = useState(rcConfiguredAtTopLevel);
   const notificationSentRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const configure = async () => {
-      console.log('Initializing RevenueCat...');
-      console.log('Platform:', Platform.OS);
-      console.log('Is __DEV__:', __DEV__);
-      const apiKey = getRCApiKey();
-      console.log('API Key available:', !!apiKey, 'Length:', apiKey?.length);
+    if (!rcConfigured) {
+      console.log('RevenueCat not configured at top level, retrying...');
       const configured = configureRevenueCat();
-      console.log('RevenueCat configured:', configured);
+      console.log('RevenueCat retry result:', configured);
       setRcConfigured(configured);
-    };
-    configure();
-  }, []);
+    } else {
+      console.log('RevenueCat already configured at top level');
+    }
+  }, [rcConfigured]);
 
   useEffect(() => {
     if (authUser && rcConfigured) {
@@ -328,9 +331,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   })) || [];
 
   const hasRealPackages = packages.length > 0;
-  // On native devices (TestFlight/App Store), only show real packages - never mock
-  // Mock packages are only for web/development preview
-  const displayPackages = hasRealPackages ? packages : (isNativeDevice && !__DEV__ ? [] : MOCK_PACKAGES);
+  const displayPackages = hasRealPackages ? packages : (isNativeDevice ? [] : MOCK_PACKAGES);
+  console.log('Packages state:', { hasRealPackages, packagesCount: packages.length, displayCount: displayPackages.length, isNativeDevice, rcConfigured, offeringsLoading: offeringsQuery.isLoading, offeringsError: offeringsQuery.error?.message });
   
   const sortedPackages = [...displayPackages].sort((a, b) => {
     const order: Record<string, number> = { '$rc_weekly': 0, '$rc_monthly': 1, '$rc_annual': 2 };
