@@ -26,9 +26,25 @@ function getRCApiKey() {
 
 let isConfigured = false;
 
-function configureRevenueCat() {
+function isExpoGo(): boolean {
+  try {
+    const Constants = require('expo-constants').default;
+    return Constants.appOwnership === 'expo';
+  } catch {
+    return false;
+  }
+}
+
+function configureRevenueCat(): boolean {
   if (isConfigured) return true;
-  
+  if (Platform.OS === 'web') {
+    console.log('RevenueCat not supported on web, using mock');
+    return false;
+  }
+  if (isExpoGo()) {
+    console.log('Running in Expo Go, skipping RevenueCat configuration');
+    return false;
+  }
   try {
     const apiKey = getRCApiKey();
     if (apiKey) {
@@ -41,19 +57,11 @@ function configureRevenueCat() {
       console.log('No RevenueCat API key available for platform:', Platform.OS);
     }
   } catch (error: any) {
-    console.log('Error configuring RevenueCat (likely Expo Go):', error?.message || error);
+    console.log('Error configuring RevenueCat:', error?.message || error);
     isConfigured = false;
   }
   return false;
 }
-
-let rcConfiguredAtTopLevel = false;
-try {
-  rcConfiguredAtTopLevel = configureRevenueCat();
-} catch (e) {
-  console.log('RevenueCat top-level config failed (Expo Go environment)');
-}
-console.log('RevenueCat top-level configuration result:', rcConfiguredAtTopLevel);
 
 export interface SubscriptionPackage {
   identifier: string;
@@ -166,7 +174,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [authUser, setAuthUser] = useState<{ uid: string; displayName: string | null; email: string } | null>(null);
   const [isPurchasing, setIsPurchasing] = useState(false);
-  const [rcConfigured, setRcConfigured] = useState(rcConfiguredAtTopLevel);
+  const [rcConfigured, setRcConfigured] = useState(false);
   const notificationSentRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {

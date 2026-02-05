@@ -1,4 +1,3 @@
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
@@ -7,9 +6,34 @@ const NOTIFICATION_SETTINGS_KEY = '@ronaldify_notification_settings';
 
 let notificationHandlerConfigured = false;
 
+function isExpoGo(): boolean {
+  try {
+    return Constants.appOwnership === 'expo';
+  } catch {
+    return false;
+  }
+}
+
+function getNotificationsModule() {
+  if (Platform.OS === 'web') return null;
+  if (isExpoGo()) {
+    console.log('expo-notifications: Skipping in Expo Go (SDK 53+)');
+    return null;
+  }
+  try {
+    return require('expo-notifications') as typeof import('expo-notifications');
+  } catch (e) {
+    console.log('expo-notifications not available:', e);
+    return null;
+  }
+}
+
 export function setupNotificationHandler() {
   if (notificationHandlerConfigured) return;
   
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return;
+
   try {
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
@@ -41,10 +65,8 @@ const defaultSettings: NotificationSettings = {
 };
 
 export async function registerForPushNotifications(): Promise<string | null> {
-  if (Platform.OS === 'web') {
-    console.log('Push notifications not supported on web');
-    return null;
-  }
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return null;
 
   setupNotificationHandler();
 
@@ -102,7 +124,8 @@ export async function saveNotificationSettings(settings: NotificationSettings): 
 }
 
 export async function scheduleTrainingReminder(hour: number = 18, minute: number = 0): Promise<string | null> {
-  if (Platform.OS === 'web') return null;
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return null;
 
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();
@@ -124,7 +147,7 @@ export async function scheduleTrainingReminder(hour: number = 18, minute: number
         data: { type: 'training_reminder' },
         sound: true,
       },
-      trigger: { seconds: secondsUntilTrigger } as Notifications.NotificationTriggerInput,
+      trigger: { seconds: secondsUntilTrigger } as any,
     });
 
     console.log('Scheduled training reminder:', identifier);
@@ -140,8 +163,9 @@ export async function sendLocalNotification(
   body: string,
   data?: Record<string, unknown>
 ): Promise<string | null> {
-  if (Platform.OS === 'web') {
-    console.log('Local notification (web):', { title, body });
+  const Notifications = getNotificationsModule();
+  if (!Notifications) {
+    console.log('Local notification (unavailable):', { title, body });
     return null;
   }
 
@@ -220,13 +244,17 @@ export async function notifyStreakMilestone(days: number): Promise<void> {
 }
 
 export function addNotificationReceivedListener(
-  callback: (notification: Notifications.Notification) => void
+  callback: (notification: any) => void
 ) {
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return { remove: () => {} };
   return Notifications.addNotificationReceivedListener(callback);
 }
 
 export function addNotificationResponseListener(
-  callback: (response: Notifications.NotificationResponse) => void
+  callback: (response: any) => void
 ) {
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return { remove: () => {} };
   return Notifications.addNotificationResponseReceivedListener(callback);
 }
