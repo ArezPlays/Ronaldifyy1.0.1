@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -72,15 +73,17 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.socialButtons}>
-            <SocialButton
-              title="Continue with Apple"
-              onPress={handleAppleSignIn}
-              icon={<Apple size={22} color={Colors.black} />}
-              variant="apple"
-              loading={loading === 'apple'}
-              disabled={loading !== null}
-              testID="apple-signin-button"
-            />
+            {Platform.OS !== 'android' && (
+              <SocialButton
+                title="Continue with Apple"
+                onPress={handleAppleSignIn}
+                icon={<Apple size={22} color={Colors.black} />}
+                variant="apple"
+                loading={loading === 'apple'}
+                disabled={loading !== null}
+                testID="apple-signin-button"
+              />
+            )}
 
             <SocialButton
               title="Continue with Google"

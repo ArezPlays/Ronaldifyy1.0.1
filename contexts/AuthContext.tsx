@@ -27,10 +27,12 @@ const GOOGLE_CLIENT_ID_IOS = '199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9.apps
 const GOOGLE_CLIENT_ID_ANDROID = '';
 
 function getGoogleClientId() {
+  if (Platform.OS === 'android') {
+    return GOOGLE_CLIENT_ID_IOS;
+  }
   return Platform.select({
-    ios: GOOGLE_CLIENT_ID_IOS || GOOGLE_CLIENT_ID_WEB,
-    android: GOOGLE_CLIENT_ID_ANDROID || GOOGLE_CLIENT_ID_WEB,
-    default: GOOGLE_CLIENT_ID_WEB,
+    ios: GOOGLE_CLIENT_ID_IOS,
+    default: GOOGLE_CLIENT_ID_WEB || GOOGLE_CLIENT_ID_IOS,
   });
 }
 
