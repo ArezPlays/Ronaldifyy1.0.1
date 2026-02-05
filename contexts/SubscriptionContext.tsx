@@ -10,14 +10,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trpcClient } from '@/lib/trpc';
 
 function getRCApiKey() {
-  if (__DEV__ || Platform.OS === 'web') {
+  // On web, always use test key
+  if (Platform.OS === 'web') {
     return process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY || '';
   }
-  return Platform.select({
+  // On native devices (including TestFlight), use platform-specific production keys
+  const key = Platform.select({
     ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY,
     android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY,
     default: process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
   }) || '';
+  console.log('RevenueCat API key selected for platform:', Platform.OS, 'Key available:', !!key);
+  return key;
 }
 
 let isConfigured = false;
