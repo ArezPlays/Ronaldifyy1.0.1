@@ -397,7 +397,7 @@ export default function DrillsScreen() {
                 </View>
                 <View style={styles.xpRewardBadge}>
                   <Zap size={12} color="#000000" />
-                  <Text style={styles.xpRewardText}>+{dailyWorkout.xpReward} XP</Text>
+                  <Text style={styles.xpRewardText}>+{(() => { const firstDrill = getDrillById(dailyWorkout.drillIds[0]); return firstDrill?.xpReward ?? 50; })()} XP</Text>
                 </View>
               </View>
               

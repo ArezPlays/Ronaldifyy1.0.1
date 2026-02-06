@@ -210,6 +210,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         scopes: ['openid', 'profile', 'email'],
         state,
         responseType: AuthSession.ResponseType.Token,
+        usePKCE: false,
       });
 
       const result = await authRequest.promptAsync(discovery);

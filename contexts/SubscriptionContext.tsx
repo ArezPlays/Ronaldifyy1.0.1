@@ -349,7 +349,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   })) || [];
 
   const hasRealPackages = packages.length > 0;
-  const displayPackages = hasRealPackages ? packages : (isNativeDevice ? [] : MOCK_PACKAGES);
+  const displayPackages = hasRealPackages ? packages : MOCK_PACKAGES;
   console.log('Packages state:', { hasRealPackages, packagesCount: packages.length, displayCount: displayPackages.length, isNativeDevice, rcConfigured, offeringsLoading: offeringsQuery.isLoading, offeringsError: offeringsQuery.error?.message });
   
   const sortedPackages = [...displayPackages].sort((a, b) => {
