@@ -220,7 +220,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: async ({ customerInfo, packageType }) => {
       console.log('Purchase successful');
-      queryClient.setQueryData(['customerInfo'], customerInfo);
+      queryClient.setQueryData(['customerInfo', rcConfigured], customerInfo);
       
       const purchaseTimestamp = Date.now();
       const productId = customerInfo.allPurchasedProductIdentifiers?.[customerInfo.allPurchasedProductIdentifiers.length - 1] || 'unknown';
@@ -245,7 +245,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: (customerInfo) => {
       console.log('Restore successful');
-      queryClient.setQueryData(['customerInfo'], customerInfo);
+      queryClient.setQueryData(['customerInfo', rcConfigured], customerInfo);
     },
     onError: (error: Error) => {
       console.log('Restore error:', error.message);
@@ -307,7 +307,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     customerInfo,
     purchasePackage,
     restorePurchases,
-    refetchCustomerInfo: () => queryClient.invalidateQueries({ queryKey: ['customerInfo'] }),
+    refetchCustomerInfo: () => queryClient.invalidateQueries({ queryKey: ['customerInfo', rcConfigured] }),
     setAuthUser,
   };
 
