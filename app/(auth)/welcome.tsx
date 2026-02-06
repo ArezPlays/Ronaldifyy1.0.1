@@ -158,6 +158,7 @@ const styles = StyleSheet.create({
   buttonContainer: {
     paddingBottom: 16,
     gap: 16,
+    marginTop: 'auto' as any,
   },
   termsText: {
     fontSize: 12,
@@ -167,10 +168,9 @@ const styles = StyleSheet.create({
   },
   madeByText: {
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: '#888899',
     textAlign: 'center',
-    marginTop: 8,
-    opacity: 0.7,
+    marginTop: 12,
     fontWeight: '500' as const,
   },
 });
