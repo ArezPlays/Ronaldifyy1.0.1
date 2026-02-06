@@ -168,12 +168,13 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   madeByText: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#FFFFFF',
     textAlign: 'center',
-    marginTop: 14,
-    marginBottom: 8,
-    fontWeight: '600' as const,
-    opacity: 0.55,
+    marginTop: 16,
+    marginBottom: 10,
+    fontWeight: '700' as const,
+    opacity: 1,
+    letterSpacing: 0.5,
   },
 });
