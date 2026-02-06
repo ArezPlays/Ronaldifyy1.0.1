@@ -24,7 +24,7 @@ interface AuthState {
 const AUTH_STORAGE_KEY = '@ronaldify_auth_user';
 
 const GOOGLE_CLIENT_ID_WEB = '';
-const GOOGLE_CLIENT_ID_IOS = 'com.googleusercontent.apps.199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9:/oauth2redirect';
+const GOOGLE_CLIENT_ID_IOS = '199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9.apps.googleusercontent.com';
 
 
 function getGoogleClientId() {
