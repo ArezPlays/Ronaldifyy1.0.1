@@ -4,7 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as AuthSession from 'expo-auth-session';
-import * as Crypto from 'expo-crypto';
+import * as WebBrowser from 'expo-web-browser';
+WebBrowser.maybeCompleteAuthSession();
 
 export interface AuthUser {
   uid: string;
@@ -24,7 +25,7 @@ const AUTH_STORAGE_KEY = '@ronaldify_auth_user';
 
 const GOOGLE_CLIENT_ID_WEB = '';
 const GOOGLE_CLIENT_ID_IOS = '199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9.apps.googleusercontent.com';
-const GOOGLE_CLIENT_ID_ANDROID = '';
+
 
 function getGoogleClientId() {
   if (Platform.OS === 'android') {
@@ -183,42 +184,46 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     }
 
     try {
-      // For iOS, use the reversed client ID as the scheme for proper redirect
-      const iosScheme = 'com.googleusercontent.apps.199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9';
       const redirectUri = AuthSession.makeRedirectUri({
-        scheme: Platform.OS === 'ios' ? iosScheme : 'rork-app',
-        path: Platform.OS === 'ios' ? '' : undefined,
+        scheme: 'com.googleusercontent.apps.199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9',
+        path: 'oauth2redirect',
       });
       
       console.log('Google redirect URI:', redirectUri);
       console.log('Using client ID:', clientId);
 
-      const state = await Crypto.digestStringAsync(
-        Crypto.CryptoDigestAlgorithm.SHA256,
-        Date.now().toString()
-      );
-
-      const discovery = {
-        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-        tokenEndpoint: 'https://oauth2.googleapis.com/token',
-        revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
-      };
+      const discovery = await AuthSession.fetchDiscoveryAsync('https://accounts.google.com');
 
       const authRequest = new AuthSession.AuthRequest({
         clientId,
         redirectUri,
         scopes: ['openid', 'profile', 'email'],
-        state,
-        responseType: AuthSession.ResponseType.Token,
-        usePKCE: false,
+        responseType: AuthSession.ResponseType.Code,
+        usePKCE: true,
       });
 
       const result = await authRequest.promptAsync(discovery);
       
       console.log('Google auth result type:', result.type);
 
-      if (result.type === 'success' && result.authentication?.accessToken) {
-        const accessToken = result.authentication.accessToken;
+      if (result.type === 'success' && result.params?.code) {
+        const code = result.params.code;
+        console.log('Got authorization code, exchanging for tokens...');
+
+        const tokenResponse = await AuthSession.exchangeCodeAsync(
+          {
+            clientId,
+            code,
+            redirectUri,
+            extraParams: {
+              code_verifier: authRequest.codeVerifier || '',
+            },
+          },
+          discovery
+        );
+
+        console.log('Token exchange successful');
+        const accessToken = tokenResponse.accessToken;
         
         const userInfoResponse = await fetch(
           'https://www.googleapis.com/oauth2/v2/userinfo',

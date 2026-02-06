@@ -79,15 +79,13 @@ export default function PaywallScreen() {
     }
   }, [packages, selectedPackage]);
 
-  const isMockPackage = selectedPackage && !selectedPackage.rcPackage;
-
   const handlePurchase = async () => {
     if (!selectedPackage) return;
     
-    if (isMockPackage) {
+    if (!selectedPackage.rcPackage) {
       Alert.alert(
-        t.purchasesOnDevice,
-        t.purchasesOnlyDevice,
+        'Purchases Unavailable',
+        'In-app purchases are not available in this environment. Please use a real device with the App Store or Play Store.',
         [{ text: 'OK' }]
       );
       return;
@@ -186,6 +184,11 @@ export default function PaywallScreen() {
               <ActivityIndicator size="large" color={colors.primary} />
               <Text style={dynamicStyles.loadingText}>{t.loadingPlans}</Text>
             </View>
+          ) : packages.length === 0 ? (
+            <View style={dynamicStyles.loadingContainer}>
+              <Text style={dynamicStyles.loadingText}>No subscription plans available right now.</Text>
+              <Text style={[dynamicStyles.loadingText, { fontSize: 13, marginTop: 4 }]}>Please try again later or restore purchases below.</Text>
+            </View>
           ) : (
             <View style={dynamicStyles.packagesContainer}>
               {packages.map((pkg) => {
@@ -259,7 +262,7 @@ export default function PaywallScreen() {
                 <ActivityIndicator size="small" color={colors.black} />
               ) : (
                 <Text style={dynamicStyles.ctaText}>
-                  {isMockPackage ? t.next : `${t.continueWith} ${selectedPackage ? getPackageLabel(selectedPackage.packageType) : ''}`}
+                  {`${t.continueWith} ${selectedPackage ? getPackageLabel(selectedPackage.packageType) : ''}`}
                 </Text>
               )}
             </LinearGradient>

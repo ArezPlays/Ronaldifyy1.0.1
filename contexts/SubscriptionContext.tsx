@@ -10,11 +10,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trpcClient } from '@/lib/trpc';
 
 function getRCApiKey() {
-  // On web, always use test key
-  if (Platform.OS === 'web') {
+  if (__DEV__ || Platform.OS === 'web') {
     return process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY || '';
   }
-  // On native devices (including TestFlight), use platform-specific production keys
   const key = Platform.select({
     ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY,
     android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY,
@@ -26,41 +24,19 @@ function getRCApiKey() {
 
 let isConfigured = false;
 
-function isExpoGo(): boolean {
+const rcApiKey = getRCApiKey();
+if (rcApiKey) {
   try {
-    const Constants = require('expo-constants').default;
-    return Constants.appOwnership === 'expo';
-  } catch {
-    return false;
-  }
-}
-
-function configureRevenueCat(): boolean {
-  if (isConfigured) return true;
-  if (Platform.OS === 'web') {
-    console.log('RevenueCat not supported on web, using mock');
-    return false;
-  }
-  if (isExpoGo()) {
-    console.log('Running in Expo Go, skipping RevenueCat configuration');
-    return false;
-  }
-  try {
-    const apiKey = getRCApiKey();
-    if (apiKey) {
-      console.log('Configuring RevenueCat with API key for platform:', Platform.OS);
-      Purchases.configure({ apiKey });
-      isConfigured = true;
-      console.log('RevenueCat configured successfully');
-      return true;
-    } else {
-      console.log('No RevenueCat API key available for platform:', Platform.OS);
-    }
+    console.log('Configuring RevenueCat at top level for platform:', Platform.OS);
+    Purchases.configure({ apiKey: rcApiKey });
+    isConfigured = true;
+    console.log('RevenueCat configured successfully');
   } catch (error: any) {
     console.log('Error configuring RevenueCat:', error?.message || error);
     isConfigured = false;
   }
-  return false;
+} else {
+  console.log('No RevenueCat API key available for platform:', Platform.OS);
 }
 
 export interface SubscriptionPackage {
@@ -93,46 +69,7 @@ function formatPriceString(priceString: string): string {
   return priceString;
 }
 
-const MOCK_PACKAGES: SubscriptionPackage[] = [
-  {
-    identifier: 'ronaldify_weekly',
-    packageType: '$rc_weekly',
-    product: {
-      identifier: 'ronaldify_weekly',
-      title: 'Weekly Pro',
-      description: '$4.99/week',
-      priceString: '$4.99',
-      price: 4.99,
-    },
-    rcPackage: null as unknown as PurchasesPackage,
-  },
-  {
-    identifier: 'ronaldify_monthly',
-    packageType: '$rc_monthly',
-    product: {
-      identifier: 'ronaldify_monthly',
-      title: 'Monthly Pro',
-      description: '$9.99/month',
-      priceString: '$9.99',
-      price: 9.99,
-    },
-    rcPackage: null as unknown as PurchasesPackage,
-  },
-  {
-    identifier: 'ronaldify_yearly',
-    packageType: '$rc_annual',
-    product: {
-      identifier: 'ronaldify_yearly',
-      title: 'Yearly Pro',
-      description: '$59.99/year',
-      priceString: '$59.99',
-      price: 59.99,
-    },
-    rcPackage: null as unknown as PurchasesPackage,
-  },
-];
 
-const isNativeDevice = Platform.OS === 'ios' || Platform.OS === 'android';
 
 async function getNotifiedTransactions(): Promise<Set<string>> {
   try {
@@ -174,23 +111,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [authUser, setAuthUser] = useState<{ uid: string; displayName: string | null; email: string } | null>(null);
   const [isPurchasing, setIsPurchasing] = useState(false);
-  const [rcConfigured, setRcConfigured] = useState(false);
+  const [rcConfigured] = useState(isConfigured);
   const notificationSentRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (!rcConfigured) {
-      console.log('RevenueCat not configured at top level, retrying...');
-      try {
-        const configured = configureRevenueCat();
-        console.log('RevenueCat retry result:', configured);
-        setRcConfigured(configured);
-      } catch (e) {
-        console.log('RevenueCat retry failed (Expo Go environment)');
-      }
-    } else {
-      console.log('RevenueCat already configured at top level');
-    }
-  }, [rcConfigured]);
 
   useEffect(() => {
     if (authUser && rcConfigured) {
@@ -348,11 +270,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     rcPackage: pkg,
   })) || [];
 
-  const hasRealPackages = packages.length > 0;
-  const displayPackages = hasRealPackages ? packages : MOCK_PACKAGES;
-  console.log('Packages state:', { hasRealPackages, packagesCount: packages.length, displayCount: displayPackages.length, isNativeDevice, rcConfigured, offeringsLoading: offeringsQuery.isLoading, offeringsError: offeringsQuery.error?.message });
+  console.log('Packages state:', { packagesCount: packages.length, rcConfigured, offeringsLoading: offeringsQuery.isLoading, offeringsError: offeringsQuery.error?.message });
   
-  const sortedPackages = [...displayPackages].sort((a, b) => {
+  const sortedPackages = [...packages].sort((a, b) => {
     const order: Record<string, number> = { '$rc_weekly': 0, '$rc_monthly': 1, '$rc_annual': 2 };
     return (order[a.packageType] ?? 99) - (order[b.packageType] ?? 99);
   });
