@@ -190,9 +190,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         usePKCE: useCodeFlow,
       });
 
-      const result = await authRequest.promptAsync(discovery, {
-        useProxy: useProxy,
-      });
+      const result = await authRequest.promptAsync(discovery);
       
       console.log('Google auth result type:', result.type);
 
