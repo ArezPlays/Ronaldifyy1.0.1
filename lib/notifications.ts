@@ -6,20 +6,8 @@ const NOTIFICATION_SETTINGS_KEY = '@ronaldify_notification_settings';
 
 let notificationHandlerConfigured = false;
 
-function isExpoGo(): boolean {
-  try {
-    return Constants.appOwnership === 'expo';
-  } catch {
-    return false;
-  }
-}
-
 function getNotificationsModule() {
   if (Platform.OS === 'web') return null;
-  if (isExpoGo()) {
-    console.log('expo-notifications: Skipping in Expo Go (SDK 53+)');
-    return null;
-  }
   try {
     return require('expo-notifications') as typeof import('expo-notifications');
   } catch (e) {
