@@ -148,33 +148,51 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     console.log('Platform:', Platform.OS);
 
     try {
+      const isAndroidStandalone = Platform.OS === 'android' && !__DEV__;
       const isAndroid = Platform.OS === 'android';
+      const isExpoGo = __DEV__;
 
-      const redirectUri = isAndroid
-        ? AuthSession.makeRedirectUri({ native: `com.googleusercontent.apps.199378159937-ulffcp9qvnuktuqstg4u5j3qgqjqtv5i:/oauthredirect` })
-        : AuthSession.makeRedirectUri({ scheme: 'rork-app', path: 'redirect' });
+      let redirectUri: string;
+      let clientId: string;
+      let useProxy = false;
 
-      const clientId = Platform.select({
-        ios: GOOGLE_CLIENT_ID_IOS,
-        android: GOOGLE_CLIENT_ID_ANDROID,
-        default: GOOGLE_CLIENT_ID_WEB,
-      }) as string;
-      
+      if (isAndroid && !isExpoGo) {
+        redirectUri = AuthSession.makeRedirectUri({
+          scheme: 'rork-app',
+          path: 'oauth2redirect',
+        });
+        clientId = GOOGLE_CLIENT_ID_ANDROID;
+      } else if (isAndroid && isExpoGo) {
+        redirectUri = AuthSession.makeRedirectUri({ scheme: 'rork-app', path: 'redirect' });
+        clientId = GOOGLE_CLIENT_ID_WEB;
+        useProxy = true;
+      } else if (Platform.OS === 'ios') {
+        redirectUri = AuthSession.makeRedirectUri({ scheme: 'rork-app', path: 'redirect' });
+        clientId = GOOGLE_CLIENT_ID_IOS;
+      } else {
+        redirectUri = AuthSession.makeRedirectUri({ scheme: 'rork-app', path: 'redirect' });
+        clientId = GOOGLE_CLIENT_ID_WEB;
+      }
+
       console.log('Google redirect URI:', redirectUri);
       console.log('Using client ID:', clientId);
-      console.log('Platform:', Platform.OS);
+      console.log('Platform:', Platform.OS, 'isExpoGo:', isExpoGo);
 
       const discovery = await AuthSession.fetchDiscoveryAsync('https://accounts.google.com');
+
+      const useCodeFlow = isAndroid && !isExpoGo;
 
       const authRequest = new AuthSession.AuthRequest({
         clientId,
         redirectUri,
         scopes: ['openid', 'profile', 'email'],
-        responseType: isAndroid ? AuthSession.ResponseType.Code : AuthSession.ResponseType.Token,
-        usePKCE: isAndroid,
+        responseType: useCodeFlow ? AuthSession.ResponseType.Code : AuthSession.ResponseType.Token,
+        usePKCE: useCodeFlow,
       });
 
-      const result = await authRequest.promptAsync(discovery);
+      const result = await authRequest.promptAsync(discovery, {
+        useProxy: useProxy,
+      });
       
       console.log('Google auth result type:', result.type);
 
