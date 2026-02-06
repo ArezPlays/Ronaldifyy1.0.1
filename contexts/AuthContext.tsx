@@ -184,9 +184,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     }
 
     try {
-      const redirectUri = AuthSession.makeRedirectUri({
-        scheme: 'com.googleusercontent.apps.199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9',
-        path: 'oauth2redirect',
+      const redirectUri = "com.googleusercontent.apps.199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9:/oauth2redirect";
       });
       
       console.log('Google redirect URI:', redirectUri);
