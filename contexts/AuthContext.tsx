@@ -92,22 +92,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const IOS_CLIENT_ID = '199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9.apps.googleusercontent.com';
   const ANDROID_CLIENT_ID = '199378159937-rspmgvphvs92sbmdfnhbp9m6719pmbkj.apps.googleusercontent.com';
 
-  let redirectUri = '';
-  try {
-    if (makeRedirectUri) {
-      if (Platform.OS === 'android') {
-        redirectUri = makeRedirectUri({
-          native: 'app.rork.ronaldify_5ml8ava://oauth2redirect',
-        });
-      } else if (Platform.OS === 'ios') {
-        redirectUri = makeRedirectUri({
-          native: `com.googleusercontent.apps.${IOS_CLIENT_ID.split('.apps.')[0]}:/oauthredirect`,
-        });
-      }
-    }
-  } catch (e: any) {
-    console.log('[GoogleAuth] makeRedirectUri error:', e?.message);
-  }
+  const redirectUri = 'https://ivgjxqdrvoaajyxhsoja.supabase.co/auth/v1/callback';
+  console.log('[GoogleAuth] Using Supabase callback redirect URI');
 
   const googleConfig: any = {
     webClientId: WEB_CLIENT_ID,
