@@ -149,21 +149,28 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     console.log('[GoogleAuth] Platform:', Platform.OS);
 
     try {
-      let redirectUrl = 'https://ivgjxqdrvoaajyxhsoja.supabase.co/auth/v1/callback';
+      let appRedirectUrl = 'rork-app://auth/callback';
 
       if (makeRedirectUri) {
         try {
-          redirectUrl = makeRedirectUri({ scheme: 'ronaldify', path: 'auth/callback' });
-          console.log('[GoogleAuth] Generated redirect URI:', redirectUrl);
+          appRedirectUrl = makeRedirectUri({ scheme: 'rork-app', path: 'auth/callback' });
+          console.log('[GoogleAuth] Generated app redirect URI:', appRedirectUrl);
         } catch (e: any) {
           console.log('[GoogleAuth] makeRedirectUri error, using default:', e?.message);
         }
       }
 
+      if (Platform.OS === 'web') {
+        appRedirectUrl = window.location.origin;
+        console.log('[GoogleAuth] Web redirect URI:', appRedirectUrl);
+      }
+
+      console.log('[GoogleAuth] Final app redirect URI:', appRedirectUrl);
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: redirectUrl,
+          redirectTo: appRedirectUrl,
           skipBrowserRedirect: true,
           queryParams: {
             prompt: 'select_account',
@@ -181,15 +188,19 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         throw new Error('Failed to get Google sign-in URL');
       }
 
-      console.log('[GoogleAuth] Opening OAuth URL...');
+      console.log('[GoogleAuth] OAuth URL generated, opening browser...');
+      console.log('[GoogleAuth] OAuth URL (first 200 chars):', data.url.substring(0, 200));
 
       if (!WebBrowser?.openAuthSessionAsync) {
         console.log('[GoogleAuth] WebBrowser not available');
         throw new Error('Browser not available for authentication');
       }
 
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+      const result = await WebBrowser.openAuthSessionAsync(data.url, appRedirectUrl);
       console.log('[GoogleAuth] Browser result type:', result?.type);
+      if (result?.url) {
+        console.log('[GoogleAuth] Result URL (first 150 chars):', result.url.substring(0, 150));
+      }
 
       if (result?.type === 'cancel' || result?.type === 'dismiss') {
         throw new Error('Sign in was cancelled');
@@ -208,19 +219,23 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           const params = new URLSearchParams(fragment);
           accessToken = params.get('access_token');
           refreshToken = params.get('refresh_token');
+          console.log('[GoogleAuth] Found tokens in hash fragment:', { hasAccess: !!accessToken, hasRefresh: !!refreshToken });
         }
 
         if (!accessToken) {
-          const queryParams = new URLSearchParams(url.split('?')[1] || '');
+          const queryString = url.split('?')[1]?.split('#')[0] || '';
+          const queryParams = new URLSearchParams(queryString);
           accessToken = queryParams.get('access_token');
           refreshToken = queryParams.get('refresh_token');
+          console.log('[GoogleAuth] Found tokens in query params:', { hasAccess: !!accessToken, hasRefresh: !!refreshToken });
         }
 
         if (!accessToken && url.includes('code=')) {
-          const queryParams = new URLSearchParams(url.split('?')[1] || '');
+          const queryString = url.split('?')[1]?.split('#')[0] || '';
+          const queryParams = new URLSearchParams(queryString);
           const code = queryParams.get('code');
           if (code) {
-            console.log('[GoogleAuth] Got authorization code, exchanging...');
+            console.log('[GoogleAuth] Got authorization code, exchanging for session...');
             const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
             if (exchangeError) {
               console.log('[GoogleAuth] Code exchange error:', exchangeError.message);
@@ -236,6 +251,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
                 provider: 'google',
               };
               await saveAndSetUser(user);
+              console.log('[GoogleAuth] Success via code exchange:', user.email);
               return user;
             }
           }
@@ -263,6 +279,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
               provider: 'google',
             };
             await saveAndSetUser(user);
+            console.log('[GoogleAuth] Success via token session:', user.email);
             return user;
           }
         }
@@ -280,14 +297,16 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
               provider: 'google',
             };
             await saveAndSetUser(user);
+            console.log('[GoogleAuth] Success via access token only:', user.email);
             return user;
           }
         }
 
         console.log('[GoogleAuth] Could not extract tokens from URL');
-        console.log('[GoogleAuth] URL structure:', url.substring(0, 100));
+        console.log('[GoogleAuth] Full URL for debugging:', url);
       }
 
+      console.log('[GoogleAuth] Polling for session (fallback)...');
       return new Promise<AuthUser>((resolve, reject) => {
         let attempts = 0;
         const checkInterval = setInterval(async () => {
@@ -305,10 +324,11 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
                 provider: 'google',
               };
               await saveAndSetUser(user);
+              console.log('[GoogleAuth] Success via session polling:', user.email);
               resolve(user);
             }
           } catch (e) {
-            console.log('[GoogleAuth] Session check error:', e);
+            console.log('[GoogleAuth] Session poll error:', e);
           }
           if (attempts > 30) {
             clearInterval(checkInterval);
