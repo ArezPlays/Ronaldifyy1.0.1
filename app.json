@@ -32,7 +32,23 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.ronaldify_5ml8ava"
+      "package": "app.rork.ronaldify_5ml8ava",
+      "versionCode": 11,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "rork-app",
+              "host": "oauth2redirect"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -50,6 +66,15 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": "https://rork.com/"
+      },
+      "eas": {
+        "projectId": "873d52a1-2478-4d35-a369-9042bccb0d2d"
+      }
+    },
+    "owner": "arezzz"
   }
 }
