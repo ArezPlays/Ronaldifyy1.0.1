@@ -2826,8 +2826,13 @@ export function isLevelUnlocked(
   const path = getSkillMasteryPath(skillId);
   if (!path) return false;
 
-  const previousLevel = path.levels.find(l => l.level === levelNumber - 1);
-  if (!previousLevel) return false;
+  for (let i = 1; i < levelNumber; i++) {
+    const prevLevel = path.levels.find(l => l.level === i);
+    if (!prevLevel) return false;
+    if (!prevLevel.drillIds.every(id => completedDrills.includes(id))) {
+      return false;
+    }
+  }
 
-  return previousLevel.drillIds.every(id => completedDrills.includes(id));
+  return true;
 }

@@ -39,7 +39,7 @@ function NavigationController({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const segments = useSegments();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { onboardingCompleted, hasSeenWelcome, isLoading: userLoading, completeOnboarding, profile } = useUser();
+  const { onboardingCompleted, hasSeenWelcome, isLoading: userLoading, completeOnboarding, updateProfile, profile } = useUser();
   const { isCompleted: personalizationCompleted, isLoading: personalizationLoading, loadPersonalization, data: personalizationData } = usePersonalization();
 
   useEffect(() => {
@@ -58,6 +58,10 @@ function NavigationController({ children }: { children: React.ReactNode }) {
         profile
       ) {
         console.log("Syncing personalization data to user profile");
+        if (personalizationData.name) {
+          await updateProfile({ name: personalizationData.name });
+          console.log("Synced personalization name to profile:", personalizationData.name);
+        }
         await completeOnboarding({
           position: personalizationData.position,
           skillLevel: personalizationData.skillLevel,
@@ -67,7 +71,7 @@ function NavigationController({ children }: { children: React.ReactNode }) {
     };
     
     syncPersonalizationToProfile();
-  }, [isAuthenticated, personalizationCompleted, onboardingCompleted, personalizationData, completeOnboarding, profile]);
+  }, [isAuthenticated, personalizationCompleted, onboardingCompleted, personalizationData, completeOnboarding, updateProfile, profile]);
 
   useEffect(() => {
     if (authLoading || userLoading || personalizationLoading || personalizationCompleted === null) return;

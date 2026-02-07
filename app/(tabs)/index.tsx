@@ -28,6 +28,7 @@ import { useUser } from '@/contexts/UserContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTraining } from '@/contexts/TrainingContext';
+import { usePersonalization } from '@/contexts/PersonalizationContext';
 import { POSITIONS } from '@/constants/positions';
 import { SKILL_MASTERY_PATHS } from '@/mocks/training';
 
@@ -39,6 +40,7 @@ export default function HomeScreen() {
   const { isPro } = useSubscription();
   const { colors } = useTheme();
   const { t } = useLanguage();
+  const { data: personalizationData } = usePersonalization();
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
@@ -99,7 +101,7 @@ export default function HomeScreen() {
             <View style={styles.headerTop}>
               <View>
                 <Text style={styles.greeting}>{getTimeOfDayGreeting()},</Text>
-                <Text style={styles.name}>{profile?.name || t.champion}</Text>
+                <Text style={styles.name}>{personalizationData?.name || profile?.name || t.champion}</Text>
               </View>
               {isPro ? (
                 <View style={styles.proBadge}>
