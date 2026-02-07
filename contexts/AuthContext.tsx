@@ -88,29 +88,41 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     isAuthenticated: false,
   });
 
-  let androidRedirectUri = '';
+  const WEB_CLIENT_ID = '199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9.apps.googleusercontent.com';
+  const ANDROID_CLIENT_ID = '199378159937-rspmgvphvs92sbmdfnhbp9m6719pmbkj.apps.googleusercontent.com';
+
+  let redirectUri = '';
   try {
     if (makeRedirectUri) {
-      androidRedirectUri = makeRedirectUri({
-        native: 'rork-app://oauth2redirect',
-      });
+      if (Platform.OS === 'android') {
+        redirectUri = makeRedirectUri({
+          native: 'rork-app://oauth2redirect',
+        });
+      } else if (Platform.OS === 'ios') {
+        redirectUri = makeRedirectUri({
+          native: `com.googleusercontent.apps.199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9:/oauthredirect`,
+        });
+      }
     }
   } catch (e: any) {
     console.log('[GoogleAuth] makeRedirectUri error:', e?.message);
   }
 
   const googleConfig: any = {
-    iosClientId: '199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9.apps.googleusercontent.com',
-    androidClientId: '199378159937-rspmgvphvs92sbmdfnhbp9m6719pmbkj.apps.googleusercontent.com',
-    webClientId: process.env.EXPO_PUBLIC_FIREBASE_WEB_CLIENT_ID,
+    webClientId: WEB_CLIENT_ID,
+    iosClientId: WEB_CLIENT_ID,
+    androidClientId: ANDROID_CLIENT_ID,
+    expoClientId: WEB_CLIENT_ID,
     scopes: ['openid', 'profile', 'email'],
+    responseType: 'id_token',
+    shouldAutoExchangeCode: false,
   };
 
-  if (Platform.OS === 'android') {
-    googleConfig.redirectUri = androidRedirectUri;
+  if (redirectUri) {
+    googleConfig.redirectUri = redirectUri;
   }
 
-  console.log('[GoogleAuth] Config platform:', Platform.OS, 'redirectUri:', googleConfig.redirectUri || 'auto (iOS reversed client ID)');
+  console.log('[GoogleAuth] Config platform:', Platform.OS, 'redirectUri:', redirectUri || 'default');
 
   let googleAuthRequest: any = [null, null, null];
   try {
@@ -131,21 +143,77 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   useEffect(() => {
     if (response?.type === 'success') {
       console.log('[GoogleAuth] Auth response success, processing...');
-      const { id_token } = response.params;
-      if (id_token) {
-        handleGoogleFirebaseLogin(id_token);
+      console.log('[GoogleAuth] Response params keys:', Object.keys(response.params || {}));
+      const idToken = response.params?.id_token;
+      const accessToken = response.authentication?.accessToken;
+      if (idToken) {
+        console.log('[GoogleAuth] Got id_token, signing into Firebase...');
+        handleGoogleFirebaseLogin(idToken);
+      } else if (accessToken) {
+        console.log('[GoogleAuth] Got access_token, fetching user info...');
+        handleGoogleAccessToken(accessToken);
       } else {
-        console.log('[GoogleAuth] No id_token in response params:', JSON.stringify(response.params));
+        console.log('[GoogleAuth] No id_token or access_token in response:', JSON.stringify(response.params));
+        console.log('[GoogleAuth] Authentication object:', JSON.stringify(response.authentication));
       }
     } else if (response) {
       console.log('[GoogleAuth] Auth response type:', response.type);
+      if (response.type === 'error') {
+        console.log('[GoogleAuth] Error details:', JSON.stringify((response as any).error));
+      }
     }
   }, [response]);
+
+  const saveAndSetUser = async (user: AuthUser) => {
+    await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+    console.log('[GoogleAuth] User saved to storage:', user.email);
+    setState({ user, isLoading: false, isAuthenticated: true });
+  };
+
+  const handleGoogleAccessToken = async (accessToken: string) => {
+    try {
+      console.log('[GoogleAuth] Fetching user info with access token...');
+      const res = await fetch('https://www.googleapis.com/userinfo/v2/me', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const userInfo = await res.json();
+      console.log('[GoogleAuth] User info:', JSON.stringify(userInfo));
+
+      const user: AuthUser = {
+        uid: userInfo.id || `google_${Date.now()}`,
+        email: userInfo.email || 'unknown@gmail.com',
+        displayName: userInfo.name || userInfo.email?.split('@')[0] || 'Google User',
+        photoURL: userInfo.picture || null,
+        provider: 'google',
+      };
+      await saveAndSetUser(user);
+    } catch (error: any) {
+      console.log('[GoogleAuth] Access token user info error:', error?.message);
+    }
+  };
 
   const handleGoogleFirebaseLogin = async (idToken: string) => {
     try {
       if (!GoogleAuthProvider || !signInWithCredential || !firebaseAuth) {
-        console.log('[GoogleAuth] Firebase auth not available');
+        console.log('[GoogleAuth] Firebase auth not available, using token decode fallback');
+        try {
+          const parts = idToken.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(atob(parts[1]));
+            console.log('[GoogleAuth] Decoded id_token payload:', JSON.stringify(payload));
+            const user: AuthUser = {
+              uid: payload.sub || `google_${Date.now()}`,
+              email: payload.email || 'unknown@gmail.com',
+              displayName: payload.name || payload.email?.split('@')[0] || 'Google User',
+              photoURL: payload.picture || null,
+              provider: 'google',
+            };
+            await saveAndSetUser(user);
+            return;
+          }
+        } catch (decodeErr: any) {
+          console.log('[GoogleAuth] Token decode error:', decodeErr?.message);
+        }
         const fallbackUser: AuthUser = {
           uid: `google_${Date.now()}`,
           email: 'google@user.com',
@@ -153,8 +221,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           photoURL: null,
           provider: 'google',
         };
-        await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(fallbackUser));
-        setState({ user: fallbackUser, isLoading: false, isAuthenticated: true });
+        await saveAndSetUser(fallbackUser);
         return;
       }
 
@@ -176,15 +243,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         photoURL: firebaseUser.photoURL || null,
         provider: 'google',
       };
-
-      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-      console.log('[GoogleAuth] User saved to storage');
-
-      setState({
-        user,
-        isLoading: false,
-        isAuthenticated: true,
-      });
+      await saveAndSetUser(user);
     } catch (error: any) {
       console.log('[GoogleAuth] Firebase credential error:', error?.message || error);
       console.log('[GoogleAuth] Firebase error code:', error?.code);
