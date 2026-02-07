@@ -4,8 +4,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
-import * as Crypto from 'expo-crypto';
+import * as Google from 'expo-auth-session/providers/google';
+import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -25,15 +26,6 @@ interface AuthState {
 
 const AUTH_STORAGE_KEY = '@ronaldify_auth_user';
 
-const GOOGLE_CLIENT_ID_IOS = '199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9.apps.googleusercontent.com';
-const GOOGLE_CLIENT_ID_ANDROID = '199378159937-rspmgvphvs92sbmdfnhbp9m6719pmbkj.apps.googleusercontent.com';
-const GOOGLE_CLIENT_ID_WEB = '199378159937-rspmgvphvs92sbmdfnhbp9m6719pmbkj.apps.googleusercontent.com';
-
-const buildReversedClientRedirect = (clientId: string) => {
-  const parts = clientId.split('.apps.googleusercontent.com')[0];
-  return `com.googleusercontent.apps.${parts}:/oauth2redirect`;
-};
-
 export const [AuthProvider, useAuth] = createContextHook(() => {
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -41,9 +33,64 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     isAuthenticated: false,
   });
 
+  const [_request, response, promptAsync] = Google.useAuthRequest({
+    iosClientId: '199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9.apps.googleusercontent.com',
+    androidClientId: '199378159937-rspmgvphvs92sbmdfnhbp9m6719pmbkj.apps.googleusercontent.com',
+    webClientId: process.env.EXPO_PUBLIC_FIREBASE_WEB_CLIENT_ID,
+  });
+
   useEffect(() => {
     loadStoredUser();
   }, []);
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      console.log('[GoogleAuth] Auth response success, processing...');
+      const { id_token } = response.params;
+      if (id_token) {
+        handleGoogleFirebaseLogin(id_token);
+      } else {
+        console.log('[GoogleAuth] No id_token in response params:', JSON.stringify(response.params));
+      }
+    } else if (response) {
+      console.log('[GoogleAuth] Auth response type:', response.type);
+    }
+  }, [response]);
+
+  const handleGoogleFirebaseLogin = async (idToken: string) => {
+    try {
+      console.log('[GoogleAuth] Signing into Firebase with id_token...');
+      const credential = GoogleAuthProvider.credential(idToken);
+      const result = await signInWithCredential(auth, credential);
+      const firebaseUser = result.user;
+
+      console.log('[GoogleAuth] Firebase sign-in successful:', {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        displayName: firebaseUser.displayName,
+      });
+
+      const user: AuthUser = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email || 'unknown@gmail.com',
+        displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Google User',
+        photoURL: firebaseUser.photoURL || null,
+        provider: 'google',
+      };
+
+      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+      console.log('[GoogleAuth] User saved to storage');
+
+      setState({
+        user,
+        isLoading: false,
+        isAuthenticated: true,
+      });
+    } catch (error: any) {
+      console.log('[GoogleAuth] Firebase credential error:', error?.message || error);
+      console.log('[GoogleAuth] Firebase error code:', error?.code);
+    }
+  };
 
   const loadStoredUser = async () => {
     try {
@@ -151,158 +198,43 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   }, []);
 
   const signInWithGoogle = useCallback(async (): Promise<AuthUser> => {
-    console.log('[GoogleAuth] Starting Google Sign In...');
+    console.log('[GoogleAuth] Starting Firebase Google Sign In...');
     console.log('[GoogleAuth] Platform:', Platform.OS);
 
     try {
-      let clientId: string;
-      let redirectUri: string;
+      const result = await promptAsync();
+      console.log('[GoogleAuth] promptAsync result type:', result?.type);
 
-      if (Platform.OS === 'ios') {
-        clientId = GOOGLE_CLIENT_ID_IOS;
-        redirectUri = buildReversedClientRedirect(GOOGLE_CLIENT_ID_IOS);
-      } else if (Platform.OS === 'android') {
-        clientId = GOOGLE_CLIENT_ID_WEB;
-        redirectUri = AuthSession.makeRedirectUri({
-          scheme: 'rork-app',
-          path: 'redirect',
-        });
-      } else {
-        clientId = GOOGLE_CLIENT_ID_WEB;
-        redirectUri = AuthSession.makeRedirectUri();
-      }
-
-      console.log('[GoogleAuth] Client ID:', clientId);
-      console.log('[GoogleAuth] Redirect URI:', redirectUri);
-
-      const randomBytes = await Crypto.getRandomBytesAsync(32);
-      const codeVerifier = Array.from(randomBytes)
-        .map(byte => byte.toString(16).padStart(2, '0'))
-        .join('')
-        .slice(0, 128);
-      
-      const codeChallenge = await Crypto.digestStringAsync(
-        Crypto.CryptoDigestAlgorithm.SHA256,
-        codeVerifier,
-        { encoding: Crypto.CryptoEncoding.BASE64 }
-      );
-      const codeChallengeFormatted = codeChallenge
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=/g, '');
-
-      const state = Crypto.randomUUID();
-
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        response_type: 'code',
-        scope: 'openid profile email',
-        code_challenge: codeChallengeFormatted,
-        code_challenge_method: 'S256',
-        state: state,
-      }).toString()}`;
-
-      console.log('[GoogleAuth] Full auth URL:', authUrl);
-
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
-
-      console.log('[GoogleAuth] Auth session result type:', result.type);
-      if (result.type === 'success') {
-        console.log('[GoogleAuth] Result URL:', result.url);
-      }
-
-      if (result.type === 'cancel' || result.type === 'dismiss') {
+      if (result?.type === 'cancel' || result?.type === 'dismiss') {
         throw new Error('Sign in was cancelled');
       }
 
-      if (result.type !== 'success') {
+      if (result?.type !== 'success') {
         throw new Error('Authentication failed');
       }
 
-      const url = result.url;
-      const queryString = url.includes('?') ? url.split('?')[1] : url.split('#')[1] || '';
-      const params = new URLSearchParams(queryString);
-      const code = params.get('code');
-      const returnedState = params.get('state');
+      return new Promise<AuthUser>((resolve, reject) => {
+        const checkInterval = setInterval(async () => {
+          const stored = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
+          if (stored) {
+            const parsed = JSON.parse(stored) as AuthUser;
+            if (parsed.provider === 'google') {
+              clearInterval(checkInterval);
+              resolve(parsed);
+            }
+          }
+        }, 200);
 
-      console.log('[GoogleAuth] Code received:', !!code);
-      console.log('[GoogleAuth] State match:', returnedState === state);
-
-      if (!code) {
-        throw new Error('No authorization code received');
-      }
-
-      if (returnedState !== state) {
-        throw new Error('State mismatch - possible CSRF attack');
-      }
-
-      console.log('[GoogleAuth] Exchanging code for token...');
-
-      const tokenBody = new URLSearchParams({
-        client_id: clientId,
-        code: code,
-        code_verifier: codeVerifier,
-        grant_type: 'authorization_code',
-        redirect_uri: redirectUri,
-      }).toString();
-
-      console.log('[GoogleAuth] Token request redirect_uri:', redirectUri);
-
-      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: tokenBody,
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          reject(new Error('Google sign-in timed out'));
+        }, 15000);
       });
-
-      const tokenText = await tokenResponse.text();
-      console.log('[GoogleAuth] Token response status:', tokenResponse.status);
-
-      if (!tokenResponse.ok) {
-        console.log('[GoogleAuth] Token exchange failed:', tokenText);
-        throw new Error(`Token exchange failed: ${tokenText}`);
-      }
-
-      const tokenData = JSON.parse(tokenText);
-      console.log('[GoogleAuth] Token exchange successful, has access_token:', !!tokenData.access_token);
-
-      const userInfoResponse = await fetch(
-        'https://www.googleapis.com/oauth2/v2/userinfo',
-        { headers: { Authorization: `Bearer ${tokenData.access_token}` } }
-      );
-
-      if (!userInfoResponse.ok) {
-        const errorText = await userInfoResponse.text();
-        console.log('[GoogleAuth] User info fetch failed:', errorText);
-        throw new Error('Failed to fetch Google user info');
-      }
-
-      const userInfo = await userInfoResponse.json();
-      console.log('[GoogleAuth] User info:', JSON.stringify({ id: userInfo.id, email: userInfo.email, name: userInfo.name }));
-
-      const user: AuthUser = {
-        uid: `google_${userInfo.id}`,
-        email: userInfo.email || 'unknown@gmail.com',
-        displayName: userInfo.name || userInfo.email?.split('@')[0] || 'Google User',
-        photoURL: userInfo.picture || null,
-        provider: 'google',
-      };
-
-      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-      console.log('[GoogleAuth] User saved successfully');
-
-      setState({
-        user,
-        isLoading: false,
-        isAuthenticated: true,
-      });
-
-      return user;
     } catch (error: any) {
       console.log('[GoogleAuth] Error:', error?.message || error);
       throw error;
     }
-  }, []);
+  }, [promptAsync]);
 
   const signInWithEmail = useCallback(async (email: string, password: string): Promise<AuthUser> => {
     console.log('Signing in with email:', email);
