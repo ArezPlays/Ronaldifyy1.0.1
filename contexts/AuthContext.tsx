@@ -160,8 +160,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         redirectUri = `com.googleusercontent.apps.${iosClientIdNumber}-${iosClientIdSuffix}:/oauth2redirect`;
         console.log('[GoogleAuth] iOS redirect URI:', redirectUri);
       } else if (Platform.OS === 'android') {
-        clientId = GOOGLE_CLIENT_ID_ANDROID;
-        redirectUri = 'app.rork.ronaldify_5ml8ava:/oauth2redirect';
+        clientId = GOOGLE_CLIENT_ID_WEB;
+        redirectUri = AuthSession.makeRedirectUri();
         console.log('[GoogleAuth] Android redirect URI:', redirectUri);
       } else {
         redirectUri = AuthSession.makeRedirectUri();
