@@ -88,10 +88,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     isAuthenticated: false,
   });
 
-  let redirectUri = '';
+  let androidRedirectUri = '';
   try {
     if (makeRedirectUri) {
-      redirectUri = makeRedirectUri({
+      androidRedirectUri = makeRedirectUri({
         native: 'rork-app://oauth2redirect',
       });
     }
@@ -99,17 +99,23 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     console.log('[GoogleAuth] makeRedirectUri error:', e?.message);
   }
 
-  console.log('[GoogleAuth] Redirect URI:', redirectUri);
+  const googleConfig: any = {
+    iosClientId: '199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9.apps.googleusercontent.com',
+    androidClientId: '199378159937-rspmgvphvs92sbmdfnhbp9m6719pmbkj.apps.googleusercontent.com',
+    webClientId: process.env.EXPO_PUBLIC_FIREBASE_WEB_CLIENT_ID,
+    scopes: ['openid', 'profile', 'email'],
+  };
+
+  if (Platform.OS === 'android') {
+    googleConfig.redirectUri = androidRedirectUri;
+  }
+
+  console.log('[GoogleAuth] Config platform:', Platform.OS, 'redirectUri:', googleConfig.redirectUri || 'auto (iOS reversed client ID)');
 
   let googleAuthRequest: any = [null, null, null];
   try {
     if (Google?.useAuthRequest) {
-      googleAuthRequest = Google.useAuthRequest({
-        iosClientId: '199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9.apps.googleusercontent.com',
-        androidClientId: '199378159937-rspmgvphvs92sbmdfnhbp9m6719pmbkj.apps.googleusercontent.com',
-        webClientId: process.env.EXPO_PUBLIC_FIREBASE_WEB_CLIENT_ID,
-        redirectUri,
-      });
+      googleAuthRequest = Google.useAuthRequest(googleConfig);
     }
   } catch (e: any) {
     console.log('[GoogleAuth] useAuthRequest error:', e?.message);
