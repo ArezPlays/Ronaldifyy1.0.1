@@ -90,11 +90,13 @@ export default function LoginScreen() {
               />
             )}
 
-            <View style={styles.dividerContainer}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>{showApple ? 'or' : ''}</Text>
-              <View style={styles.dividerLine} />
-            </View>
+            {showApple && (
+              <View style={styles.dividerContainer}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.dividerLine} />
+              </View>
+            )}
 
             <TouchableOpacity
               style={[styles.guestButton, loading !== null && styles.guestButtonDisabled]}
