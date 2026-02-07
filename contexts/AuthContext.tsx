@@ -2,14 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
+import { supabase } from '@/lib/supabase';
 
 let WebBrowser: any = null;
-let Google: any = null;
-let makeRedirectUri: any = null;
 let AppleAuthentication: any = null;
-let GoogleAuthProvider: any = null;
-let signInWithCredential: any = null;
-let firebaseAuth: any = null;
+let makeRedirectUri: any = null;
 let modulesLoaded = false;
 
 function loadModules() {
@@ -32,7 +29,6 @@ function loadModules() {
   }
 
   try {
-    Google = require('expo-auth-session/providers/google');
     const authSession = require('expo-auth-session');
     makeRedirectUri = authSession.makeRedirectUri;
     console.log('[Auth] expo-auth-session loaded');
@@ -45,17 +41,6 @@ function loadModules() {
     console.log('[Auth] expo-apple-authentication loaded');
   } catch (e: any) {
     console.log('[Auth] expo-apple-authentication load error:', e?.message);
-  }
-
-  try {
-    const firebaseAuthModule = require('firebase/auth');
-    GoogleAuthProvider = firebaseAuthModule?.GoogleAuthProvider;
-    signInWithCredential = firebaseAuthModule?.signInWithCredential;
-    const firebaseLib = require('@/lib/firebase');
-    firebaseAuth = firebaseLib?.auth;
-    console.log('[Auth] Firebase auth loaded, auth available:', !!firebaseAuth);
-  } catch (e: any) {
-    console.log('[Auth] Firebase auth load error:', e?.message);
   }
 }
 
@@ -88,179 +73,260 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     isAuthenticated: false,
   });
 
-  const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_FIREBASE_WEB_CLIENT_ID || '1040380279539-d0dqak4a9oh32uab5utpehbogfpnpaab.apps.googleusercontent.com';
-  const IOS_CLIENT_ID = '199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9.apps.googleusercontent.com';
-  const ANDROID_CLIENT_ID = '199378159937-rspmgvphvs92sbmdfnhbp9m6719pmbkj.apps.googleusercontent.com';
-
-  const redirectUri = 'https://ivgjxqdrvoaajyxhsoja.supabase.co/auth/v1/callback';
-  console.log('[GoogleAuth] Using Supabase callback redirect URI');
-
-  const googleConfig: any = {
-    webClientId: WEB_CLIENT_ID,
-    iosClientId: IOS_CLIENT_ID,
-    androidClientId: ANDROID_CLIENT_ID,
-    expoClientId: WEB_CLIENT_ID,
-    scopes: ['openid', 'profile', 'email'],
-    responseType: 'id_token',
-    shouldAutoExchangeCode: false,
-  };
-
-  if (redirectUri) {
-    googleConfig.redirectUri = redirectUri;
-  }
-
-  console.log('[GoogleAuth] Config platform:', Platform.OS, 'redirectUri:', redirectUri || 'default');
-
-  let googleAuthRequest: any = [null, null, null];
-  try {
-    if (Google?.useAuthRequest) {
-      googleAuthRequest = Google.useAuthRequest(googleConfig);
-    }
-  } catch (e: any) {
-    console.log('[GoogleAuth] useAuthRequest error:', e?.message);
-    googleAuthRequest = [null, null, null];
-  }
-
-  const [_request, response, promptAsync] = googleAuthRequest;
-
   useEffect(() => {
     loadStoredUser();
+    listenToSupabaseAuth();
   }, []);
 
-  useEffect(() => {
-    if (response?.type === 'success') {
-      console.log('[GoogleAuth] Auth response success, processing...');
-      console.log('[GoogleAuth] Response params keys:', Object.keys(response.params || {}));
-      const idToken = response.params?.id_token;
-      const accessToken = response.authentication?.accessToken;
-      if (idToken) {
-        console.log('[GoogleAuth] Got id_token, signing into Firebase...');
-        handleGoogleFirebaseLogin(idToken);
-      } else if (accessToken) {
-        console.log('[GoogleAuth] Got access_token, fetching user info...');
-        handleGoogleAccessToken(accessToken);
-      } else {
-        console.log('[GoogleAuth] No id_token or access_token in response:', JSON.stringify(response.params));
-        console.log('[GoogleAuth] Authentication object:', JSON.stringify(response.authentication));
+  const listenToSupabaseAuth = () => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[Auth] Supabase auth event:', event);
+      if (event === 'SIGNED_IN' && session?.user) {
+        const supaUser = session.user;
+        console.log('[Auth] Supabase user signed in:', supaUser.email);
+        const provider = supaUser.app_metadata?.provider as string;
+        const user: AuthUser = {
+          uid: supaUser.id,
+          email: supaUser.email || 'unknown@gmail.com',
+          displayName: supaUser.user_metadata?.full_name || supaUser.user_metadata?.name || supaUser.email?.split('@')[0] || 'User',
+          photoURL: supaUser.user_metadata?.avatar_url || supaUser.user_metadata?.picture || null,
+          provider: (provider === 'apple' ? 'apple' : provider === 'google' ? 'google' : 'email') as AuthUser['provider'],
+        };
+        await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+        setState({ user, isLoading: false, isAuthenticated: true });
+      } else if (event === 'SIGNED_OUT') {
+        await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
+        setState({ user: null, isLoading: false, isAuthenticated: false });
       }
-    } else if (response) {
-      console.log('[GoogleAuth] Auth response type:', response.type);
-      if (response.type === 'error') {
-        console.log('[GoogleAuth] Error details:', JSON.stringify((response as any).error));
-      }
-    }
-  }, [response]);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  };
 
   const saveAndSetUser = async (user: AuthUser) => {
     await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-    console.log('[GoogleAuth] User saved to storage:', user.email);
+    console.log('[Auth] User saved to storage:', user.email);
     setState({ user, isLoading: false, isAuthenticated: true });
-  };
-
-  const handleGoogleAccessToken = async (accessToken: string) => {
-    try {
-      console.log('[GoogleAuth] Fetching user info with access token...');
-      const res = await fetch('https://www.googleapis.com/userinfo/v2/me', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const userInfo = await res.json();
-      console.log('[GoogleAuth] User info:', JSON.stringify(userInfo));
-
-      const user: AuthUser = {
-        uid: userInfo.id || `google_${Date.now()}`,
-        email: userInfo.email || 'unknown@gmail.com',
-        displayName: userInfo.name || userInfo.email?.split('@')[0] || 'Google User',
-        photoURL: userInfo.picture || null,
-        provider: 'google',
-      };
-      await saveAndSetUser(user);
-    } catch (error: any) {
-      console.log('[GoogleAuth] Access token user info error:', error?.message);
-    }
-  };
-
-  const handleGoogleFirebaseLogin = async (idToken: string) => {
-    try {
-      if (!GoogleAuthProvider || !signInWithCredential || !firebaseAuth) {
-        console.log('[GoogleAuth] Firebase auth not available, using token decode fallback');
-        try {
-          const parts = idToken.split('.');
-          if (parts.length === 3) {
-            const payload = JSON.parse(atob(parts[1]));
-            console.log('[GoogleAuth] Decoded id_token payload:', JSON.stringify(payload));
-            const user: AuthUser = {
-              uid: payload.sub || `google_${Date.now()}`,
-              email: payload.email || 'unknown@gmail.com',
-              displayName: payload.name || payload.email?.split('@')[0] || 'Google User',
-              photoURL: payload.picture || null,
-              provider: 'google',
-            };
-            await saveAndSetUser(user);
-            return;
-          }
-        } catch (decodeErr: any) {
-          console.log('[GoogleAuth] Token decode error:', decodeErr?.message);
-        }
-        const fallbackUser: AuthUser = {
-          uid: `google_${Date.now()}`,
-          email: 'google@user.com',
-          displayName: 'Google User',
-          photoURL: null,
-          provider: 'google',
-        };
-        await saveAndSetUser(fallbackUser);
-        return;
-      }
-
-      console.log('[GoogleAuth] Signing into Firebase with id_token...');
-      const credential = GoogleAuthProvider.credential(idToken);
-      const result = await signInWithCredential(firebaseAuth, credential);
-      const firebaseUser = result.user;
-
-      console.log('[GoogleAuth] Firebase sign-in successful:', {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email,
-        displayName: firebaseUser.displayName,
-      });
-
-      const user: AuthUser = {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email || 'unknown@gmail.com',
-        displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Google User',
-        photoURL: firebaseUser.photoURL || null,
-        provider: 'google',
-      };
-      await saveAndSetUser(user);
-    } catch (error: any) {
-      console.log('[GoogleAuth] Firebase credential error:', error?.message || error);
-      console.log('[GoogleAuth] Firebase error code:', error?.code);
-    }
   };
 
   const loadStoredUser = async () => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const supaUser = session.user;
+        const provider = supaUser.app_metadata?.provider as string;
+        const user: AuthUser = {
+          uid: supaUser.id,
+          email: supaUser.email || 'unknown@gmail.com',
+          displayName: supaUser.user_metadata?.full_name || supaUser.user_metadata?.name || supaUser.email?.split('@')[0] || 'User',
+          photoURL: supaUser.user_metadata?.avatar_url || supaUser.user_metadata?.picture || null,
+          provider: (provider === 'apple' ? 'apple' : provider === 'google' ? 'google' : 'email') as AuthUser['provider'],
+        };
+        await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+        setState({ user, isLoading: false, isAuthenticated: true });
+        console.log('[Auth] Restored Supabase session for:', user.email);
+        return;
+      }
+
       const storedUser = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
       if (storedUser) {
         const user = JSON.parse(storedUser) as AuthUser;
-        setState({
-          user,
-          isLoading: false,
-          isAuthenticated: true,
-        });
+        setState({ user, isLoading: false, isAuthenticated: true });
+        console.log('[Auth] Restored user from storage:', user.email);
       } else {
         setState(prev => ({ ...prev, isLoading: false }));
       }
     } catch (error) {
-      console.log('Error loading stored user:', error);
+      console.log('[Auth] Error loading stored user:', error);
       setState(prev => ({ ...prev, isLoading: false }));
     }
   };
 
+  const signInWithGoogle = useCallback(async (): Promise<AuthUser> => {
+    console.log('[GoogleAuth] Starting Supabase Google OAuth...');
+    console.log('[GoogleAuth] Platform:', Platform.OS);
+
+    try {
+      let redirectUrl = 'https://ivgjxqdrvoaajyxhsoja.supabase.co/auth/v1/callback';
+
+      if (makeRedirectUri) {
+        try {
+          redirectUrl = makeRedirectUri({ scheme: 'ronaldify', path: 'auth/callback' });
+          console.log('[GoogleAuth] Generated redirect URI:', redirectUrl);
+        } catch (e: any) {
+          console.log('[GoogleAuth] makeRedirectUri error, using default:', e?.message);
+        }
+      }
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: true,
+          queryParams: {
+            prompt: 'select_account',
+          },
+        },
+      });
+
+      if (error) {
+        console.log('[GoogleAuth] Supabase OAuth error:', error.message);
+        throw new Error(error.message);
+      }
+
+      if (!data?.url) {
+        console.log('[GoogleAuth] No OAuth URL returned');
+        throw new Error('Failed to get Google sign-in URL');
+      }
+
+      console.log('[GoogleAuth] Opening OAuth URL...');
+
+      if (!WebBrowser?.openAuthSessionAsync) {
+        console.log('[GoogleAuth] WebBrowser not available');
+        throw new Error('Browser not available for authentication');
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+      console.log('[GoogleAuth] Browser result type:', result?.type);
+
+      if (result?.type === 'cancel' || result?.type === 'dismiss') {
+        throw new Error('Sign in was cancelled');
+      }
+
+      if (result?.type === 'success' && result?.url) {
+        console.log('[GoogleAuth] Got callback URL, extracting tokens...');
+
+        const url = result.url;
+        let accessToken: string | null = null;
+        let refreshToken: string | null = null;
+
+        const hashIndex = url.indexOf('#');
+        if (hashIndex !== -1) {
+          const fragment = url.substring(hashIndex + 1);
+          const params = new URLSearchParams(fragment);
+          accessToken = params.get('access_token');
+          refreshToken = params.get('refresh_token');
+        }
+
+        if (!accessToken) {
+          const queryParams = new URLSearchParams(url.split('?')[1] || '');
+          accessToken = queryParams.get('access_token');
+          refreshToken = queryParams.get('refresh_token');
+        }
+
+        if (!accessToken && url.includes('code=')) {
+          const queryParams = new URLSearchParams(url.split('?')[1] || '');
+          const code = queryParams.get('code');
+          if (code) {
+            console.log('[GoogleAuth] Got authorization code, exchanging...');
+            const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+            if (exchangeError) {
+              console.log('[GoogleAuth] Code exchange error:', exchangeError.message);
+              throw new Error(exchangeError.message);
+            }
+            if (sessionData?.user) {
+              const supaUser = sessionData.user;
+              const user: AuthUser = {
+                uid: supaUser.id,
+                email: supaUser.email || 'unknown@gmail.com',
+                displayName: supaUser.user_metadata?.full_name || supaUser.user_metadata?.name || supaUser.email?.split('@')[0] || 'Google User',
+                photoURL: supaUser.user_metadata?.avatar_url || supaUser.user_metadata?.picture || null,
+                provider: 'google',
+              };
+              await saveAndSetUser(user);
+              return user;
+            }
+          }
+        }
+
+        if (accessToken && refreshToken) {
+          console.log('[GoogleAuth] Setting Supabase session with tokens...');
+          const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          if (sessionError) {
+            console.log('[GoogleAuth] Set session error:', sessionError.message);
+            throw new Error(sessionError.message);
+          }
+
+          if (sessionData?.user) {
+            const supaUser = sessionData.user;
+            const user: AuthUser = {
+              uid: supaUser.id,
+              email: supaUser.email || 'unknown@gmail.com',
+              displayName: supaUser.user_metadata?.full_name || supaUser.user_metadata?.name || supaUser.email?.split('@')[0] || 'Google User',
+              photoURL: supaUser.user_metadata?.avatar_url || supaUser.user_metadata?.picture || null,
+              provider: 'google',
+            };
+            await saveAndSetUser(user);
+            return user;
+          }
+        }
+
+        if (accessToken && !refreshToken) {
+          console.log('[GoogleAuth] Only access_token available, getting user...');
+          const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
+          if (!userError && userData?.user) {
+            const supaUser = userData.user;
+            const user: AuthUser = {
+              uid: supaUser.id,
+              email: supaUser.email || 'unknown@gmail.com',
+              displayName: supaUser.user_metadata?.full_name || supaUser.user_metadata?.name || supaUser.email?.split('@')[0] || 'Google User',
+              photoURL: supaUser.user_metadata?.avatar_url || supaUser.user_metadata?.picture || null,
+              provider: 'google',
+            };
+            await saveAndSetUser(user);
+            return user;
+          }
+        }
+
+        console.log('[GoogleAuth] Could not extract tokens from URL');
+        console.log('[GoogleAuth] URL structure:', url.substring(0, 100));
+      }
+
+      return new Promise<AuthUser>((resolve, reject) => {
+        let attempts = 0;
+        const checkInterval = setInterval(async () => {
+          attempts++;
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+              clearInterval(checkInterval);
+              const supaUser = session.user;
+              const user: AuthUser = {
+                uid: supaUser.id,
+                email: supaUser.email || 'unknown@gmail.com',
+                displayName: supaUser.user_metadata?.full_name || supaUser.user_metadata?.name || supaUser.email?.split('@')[0] || 'Google User',
+                photoURL: supaUser.user_metadata?.avatar_url || supaUser.user_metadata?.picture || null,
+                provider: 'google',
+              };
+              await saveAndSetUser(user);
+              resolve(user);
+            }
+          } catch (e) {
+            console.log('[GoogleAuth] Session check error:', e);
+          }
+          if (attempts > 30) {
+            clearInterval(checkInterval);
+            reject(new Error('Google sign-in timed out waiting for session'));
+          }
+        }, 500);
+      });
+    } catch (error: any) {
+      console.log('[GoogleAuth] Error:', error?.message || error);
+      throw error;
+    }
+  }, []);
+
   const signInWithApple = useCallback(async (): Promise<AuthUser> => {
-    console.log('Starting Apple Sign In...');
-    
+    console.log('[AppleAuth] Starting Apple Sign In...');
+
     if (Platform.OS === 'web' || !AppleAuthentication) {
-      console.log('Apple Sign In not available, using fallback');
+      console.log('[AppleAuth] Apple Sign In not available, using fallback');
       const fallbackUser: AuthUser = {
         uid: `apple_web_${Date.now()}`,
         email: 'user@icloud.com',
@@ -268,19 +334,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         photoURL: null,
         provider: 'apple',
       };
-      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(fallbackUser));
-      setState({
-        user: fallbackUser,
-        isLoading: false,
-        isAuthenticated: true,
-      });
+      await saveAndSetUser(fallbackUser);
       return fallbackUser;
     }
 
     try {
       const isAvailable = await AppleAuthentication.isAvailableAsync();
-      console.log('Apple Sign In available:', isAvailable);
-      
+      console.log('[AppleAuth] Apple Sign In available:', isAvailable);
+
       if (!isAvailable) {
         throw new Error('Apple Sign In is not available on this device');
       }
@@ -292,11 +353,42 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         ],
       });
 
-      console.log('Apple credential received:', {
+      console.log('[AppleAuth] Apple credential received:', {
         user: credential.user,
         email: credential.email,
         fullName: credential.fullName,
       });
+
+      if (credential.identityToken) {
+        console.log('[AppleAuth] Signing in with Supabase using Apple identity token...');
+        const { data, error } = await supabase.auth.signInWithIdToken({
+          provider: 'apple',
+          token: credential.identityToken,
+        });
+
+        if (!error && data?.user) {
+          const supaUser = data.user;
+          const displayName = credential.fullName
+            ? [credential.fullName.givenName, credential.fullName.familyName]
+                .filter(Boolean)
+                .join(' ') || null
+            : null;
+
+          const user: AuthUser = {
+            uid: supaUser.id,
+            email: supaUser.email || credential.email || 'private@apple.com',
+            displayName: displayName || supaUser.user_metadata?.full_name || supaUser.email?.split('@')[0] || 'Apple User',
+            photoURL: null,
+            provider: 'apple',
+          };
+          await saveAndSetUser(user);
+          return user;
+        }
+
+        if (error) {
+          console.log('[AppleAuth] Supabase Apple sign-in error:', error.message);
+        }
+      }
 
       const displayName = credential.fullName
         ? [credential.fullName.givenName, credential.fullName.familyName]
@@ -320,128 +412,90 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         photoURL: null,
         provider: 'apple',
       };
-
-      console.log('Saving Apple user:', user);
-      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-      
-      setState({
-        user,
-        isLoading: false,
-        isAuthenticated: true,
-      });
-
+      await saveAndSetUser(user);
       return user;
     } catch (error: any) {
-      console.log('Apple Sign In error:', error);
-      
+      console.log('[AppleAuth] Error:', error);
       if (error.code === 'ERR_REQUEST_CANCELED') {
         throw new Error('Sign in was cancelled');
       }
-      
       throw error;
     }
   }, []);
 
-  const signInWithGoogle = useCallback(async (): Promise<AuthUser> => {
-    console.log('[GoogleAuth] Starting Firebase Google Sign In...');
-    console.log('[GoogleAuth] Platform:', Platform.OS);
-
-    if (!promptAsync) {
-      console.log('[GoogleAuth] promptAsync not available');
-      throw new Error('Google Sign In is not available');
-    }
-
-    try {
-      const result = await promptAsync();
-      console.log('[GoogleAuth] promptAsync result type:', result?.type);
-
-      if (result?.type === 'cancel' || result?.type === 'dismiss') {
-        throw new Error('Sign in was cancelled');
-      }
-
-      if (result?.type !== 'success') {
-        throw new Error('Authentication failed');
-      }
-
-      return new Promise<AuthUser>((resolve, reject) => {
-        const checkInterval = setInterval(async () => {
-          const stored = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
-          if (stored) {
-            const parsed = JSON.parse(stored) as AuthUser;
-            if (parsed.provider === 'google') {
-              clearInterval(checkInterval);
-              resolve(parsed);
-            }
-          }
-        }, 200);
-
-        setTimeout(() => {
-          clearInterval(checkInterval);
-          reject(new Error('Google sign-in timed out'));
-        }, 15000);
-      });
-    } catch (error: any) {
-      console.log('[GoogleAuth] Error:', error?.message || error);
-      throw error;
-    }
-  }, [promptAsync]);
-
   const signInWithEmail = useCallback(async (email: string, password: string): Promise<AuthUser> => {
-    console.log('Signing in with email:', email);
+    console.log('[EmailAuth] Signing in with email:', email);
     if (!email || !password) {
       throw new Error('Email and password are required');
     }
-    
-    const mockUser: AuthUser = {
-      uid: `email_${Date.now()}`,
-      email,
-      displayName: email.split('@')[0],
-      photoURL: null,
-      provider: 'email',
-    };
-    
-    await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(mockUser));
-    setState({
-      user: mockUser,
-      isLoading: false,
-      isAuthenticated: true,
-    });
-    
-    return mockUser;
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      console.log('[EmailAuth] Supabase error:', error.message);
+      throw new Error(error.message);
+    }
+
+    if (data?.user) {
+      const supaUser = data.user;
+      const user: AuthUser = {
+        uid: supaUser.id,
+        email: supaUser.email || email,
+        displayName: supaUser.user_metadata?.full_name || email.split('@')[0],
+        photoURL: supaUser.user_metadata?.avatar_url || null,
+        provider: 'email',
+      };
+      await saveAndSetUser(user);
+      return user;
+    }
+
+    throw new Error('Sign in failed');
   }, []);
 
   const signUpWithEmail = useCallback(async (email: string, password: string, name: string): Promise<AuthUser> => {
-    console.log('Signing up with email:', email);
+    console.log('[EmailAuth] Signing up with email:', email);
     if (!email || !password || !name) {
       throw new Error('Email, password, and name are required');
     }
-    
-    const mockUser: AuthUser = {
-      uid: `email_${Date.now()}`,
+
+    const { data, error } = await supabase.auth.signUp({
       email,
-      displayName: name,
-      photoURL: null,
-      provider: 'email',
-    };
-    
-    await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(mockUser));
-    setState({
-      user: mockUser,
-      isLoading: false,
-      isAuthenticated: true,
+      password,
+      options: {
+        data: { full_name: name },
+      },
     });
-    
-    return mockUser;
+
+    if (error) {
+      console.log('[EmailAuth] Supabase sign-up error:', error.message);
+      throw new Error(error.message);
+    }
+
+    if (data?.user) {
+      const supaUser = data.user;
+      const user: AuthUser = {
+        uid: supaUser.id,
+        email: supaUser.email || email,
+        displayName: name,
+        photoURL: null,
+        provider: 'email',
+      };
+      await saveAndSetUser(user);
+      return user;
+    }
+
+    throw new Error('Sign up failed');
   }, []);
 
   const signOut = useCallback(async () => {
-    console.log('Signing out...');
+    console.log('[Auth] Signing out...');
+    try {
+      await supabase.auth.signOut();
+    } catch (e: any) {
+      console.log('[Auth] Supabase sign out error:', e?.message);
+    }
     await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
-    setState({
-      user: null,
-      isLoading: false,
-      isAuthenticated: false,
-    });
+    setState({ user: null, isLoading: false, isAuthenticated: false });
   }, []);
 
   return {
