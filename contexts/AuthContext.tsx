@@ -25,8 +25,8 @@ interface AuthState {
 
 const AUTH_STORAGE_KEY = '@ronaldify_auth_user';
 
-const GOOGLE_CLIENT_ID_WEB = '199378159937-rspmgvphvs92sbmdfnhbp9m6719pmbkj.apps.googleusercontent.com';
 const GOOGLE_CLIENT_ID_IOS = '199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID_ANDROID = '199378159937-rspmgvphvs92sbmdfnhbp9m6719pmbkj.apps.googleusercontent.com';
 
 const buildReversedClientRedirect = (clientId: string) => {
   const parts = clientId.split('.apps.googleusercontent.com')[0];
@@ -154,21 +154,22 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     console.log('[GoogleAuth] Platform:', Platform.OS);
 
     try {
-      let clientId = GOOGLE_CLIENT_ID_WEB;
-      let redirectUri = '';
+      let clientId: string;
+      let redirectUri: string;
 
       if (Platform.OS === 'ios') {
         clientId = GOOGLE_CLIENT_ID_IOS;
         redirectUri = buildReversedClientRedirect(GOOGLE_CLIENT_ID_IOS);
-        console.log('[GoogleAuth] iOS redirect URI:', redirectUri);
       } else if (Platform.OS === 'android') {
-        clientId = GOOGLE_CLIENT_ID_WEB;
-        redirectUri = buildReversedClientRedirect(GOOGLE_CLIENT_ID_WEB);
-        console.log('[GoogleAuth] Android redirect URI:', redirectUri);
+        clientId = GOOGLE_CLIENT_ID_ANDROID;
+        redirectUri = buildReversedClientRedirect(GOOGLE_CLIENT_ID_ANDROID);
       } else {
+        clientId = GOOGLE_CLIENT_ID_ANDROID;
         redirectUri = AuthSession.makeRedirectUri();
-        console.log('[GoogleAuth] Web redirect URI:', redirectUri);
       }
+
+      console.log('[GoogleAuth] Client ID:', clientId);
+      console.log('[GoogleAuth] Redirect URI:', redirectUri);
 
       const randomBytes = await Crypto.getRandomBytesAsync(32);
       const codeVerifier = Array.from(randomBytes)
@@ -198,12 +199,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         state: state,
       }).toString()}`;
 
-      console.log('[GoogleAuth] Opening auth URL...');
-      console.log('[GoogleAuth] Client ID:', clientId);
+      console.log('[GoogleAuth] Full auth URL:', authUrl);
 
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
 
-      console.log('[GoogleAuth] Auth session result:', result.type);
+      console.log('[GoogleAuth] Auth session result type:', result.type);
+      if (result.type === 'success') {
+        console.log('[GoogleAuth] Result URL:', result.url);
+      }
 
       if (result.type === 'cancel' || result.type === 'dismiss') {
         throw new Error('Sign in was cancelled');
@@ -214,9 +217,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       }
 
       const url = result.url;
-      const params = new URLSearchParams(url.split('?')[1]);
+      const queryString = url.includes('?') ? url.split('?')[1] : url.split('#')[1] || '';
+      const params = new URLSearchParams(queryString);
       const code = params.get('code');
       const returnedState = params.get('state');
+
+      console.log('[GoogleAuth] Code received:', !!code);
+      console.log('[GoogleAuth] State match:', returnedState === state);
 
       if (!code) {
         throw new Error('No authorization code received');
@@ -226,30 +233,34 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         throw new Error('State mismatch - possible CSRF attack');
       }
 
-      console.log('[GoogleAuth] Got authorization code, exchanging for token...');
+      console.log('[GoogleAuth] Exchanging code for token...');
+
+      const tokenBody = new URLSearchParams({
+        client_id: clientId,
+        code: code,
+        code_verifier: codeVerifier,
+        grant_type: 'authorization_code',
+        redirect_uri: redirectUri,
+      }).toString();
+
+      console.log('[GoogleAuth] Token request redirect_uri:', redirectUri);
 
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: clientId,
-          code: code,
-          code_verifier: codeVerifier,
-          grant_type: 'authorization_code',
-          redirect_uri: redirectUri,
-        }).toString(),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: tokenBody,
       });
 
+      const tokenText = await tokenResponse.text();
+      console.log('[GoogleAuth] Token response status:', tokenResponse.status);
+
       if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text();
-        console.log('[GoogleAuth] Token exchange failed:', errorText);
-        throw new Error('Failed to exchange authorization code');
+        console.log('[GoogleAuth] Token exchange failed:', tokenText);
+        throw new Error(`Token exchange failed: ${tokenText}`);
       }
 
-      const tokenData = await tokenResponse.json();
-      console.log('[GoogleAuth] Token exchange successful');
+      const tokenData = JSON.parse(tokenText);
+      console.log('[GoogleAuth] Token exchange successful, has access_token:', !!tokenData.access_token);
 
       const userInfoResponse = await fetch(
         'https://www.googleapis.com/oauth2/v2/userinfo',
@@ -263,7 +274,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       }
 
       const userInfo = await userInfoResponse.json();
-      console.log('[GoogleAuth] User info received:', JSON.stringify({ id: userInfo.id, email: userInfo.email, name: userInfo.name }));
+      console.log('[GoogleAuth] User info:', JSON.stringify({ id: userInfo.id, email: userInfo.email, name: userInfo.name }));
 
       const user: AuthUser = {
         uid: `google_${userInfo.id}`,
@@ -284,7 +295,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       return user;
     } catch (error: any) {
-      console.log('[GoogleAuth] Error:', error);
+      console.log('[GoogleAuth] Error:', error?.message || error);
       throw error;
     }
   }, []);
