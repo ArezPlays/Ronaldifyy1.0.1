@@ -5,6 +5,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
+import { makeRedirectUri } from 'expo-auth-session';
 WebBrowser.maybeCompleteAuthSession();
 
 export interface AuthUser {
@@ -143,11 +144,19 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     }
   }, []);
 
+  const googleRedirectUri = makeRedirectUri({
+    scheme: 'rork-app',
+    path: 'redirect',
+  });
+
+  console.log('[GoogleAuth] Redirect URI:', googleRedirectUri);
+
   const [, googleResponse, googlePromptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_CLIENT_ID_WEB,
     iosClientId: GOOGLE_CLIENT_ID_IOS,
     androidClientId: GOOGLE_CLIENT_ID_ANDROID,
     scopes: ['openid', 'profile', 'email'],
+    redirectUri: googleRedirectUri,
   });
 
   const processGoogleResponse = useCallback(async (authentication: { accessToken: string }): Promise<AuthUser> => {
