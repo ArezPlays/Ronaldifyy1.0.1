@@ -33,7 +33,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "app.rork.ronaldify_5ml8ava",
-      "versionCode": 12,
+      "versionCode": 13,
       "intentFilters": [
         {
           "action": "VIEW",
