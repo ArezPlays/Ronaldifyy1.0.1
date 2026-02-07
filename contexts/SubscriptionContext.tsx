@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef, createContext, useContext, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import Purchases, { 
-  PurchasesPackage, 
-  CustomerInfo,
-  PurchasesOffering
-} from 'react-native-purchases';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trpcClient } from '@/lib/trpc';
+
+let Purchases: any = null;
+try {
+  const rc = require('react-native-purchases');
+  Purchases = rc.default || rc;
+  console.log('[RevenueCat] Module loaded successfully');
+} catch (error: any) {
+  console.log('[RevenueCat] Module not available:', error?.message || error);
+}
 
 function getRCApiKey() {
   if (__DEV__ || Platform.OS === 'web') {
@@ -18,25 +22,38 @@ function getRCApiKey() {
     android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY,
     default: process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
   }) || '';
-  console.log('RevenueCat API key selected for platform:', Platform.OS, 'Key available:', !!key);
+  console.log('[RevenueCat] API key selected for platform:', Platform.OS, 'Key available:', !!key);
   return key;
 }
 
 let isConfigured = false;
 
-const rcApiKey = getRCApiKey();
-if (rcApiKey) {
-  try {
-    console.log('Configuring RevenueCat at top level for platform:', Platform.OS);
-    Purchases.configure({ apiKey: rcApiKey });
-    isConfigured = true;
-    console.log('RevenueCat configured successfully');
-  } catch (error: any) {
-    console.log('Error configuring RevenueCat:', error?.message || error);
-    isConfigured = false;
+function tryConfigureRC() {
+  if (!Purchases) {
+    console.log('[RevenueCat] Purchases module not available, skipping configure');
+    return false;
   }
-} else {
-  console.log('No RevenueCat API key available for platform:', Platform.OS);
+  const rcApiKey = getRCApiKey();
+  if (!rcApiKey) {
+    console.log('[RevenueCat] No API key available for platform:', Platform.OS);
+    return false;
+  }
+  try {
+    console.log('[RevenueCat] Configuring for platform:', Platform.OS);
+    Purchases.configure({ apiKey: rcApiKey });
+    console.log('[RevenueCat] Configured successfully');
+    return true;
+  } catch (error: any) {
+    console.log('[RevenueCat] Configure error:', error?.message || error);
+    return false;
+  }
+}
+
+try {
+  isConfigured = tryConfigureRC();
+} catch (e: any) {
+  console.log('[RevenueCat] Top-level configure failed:', e?.message || e);
+  isConfigured = false;
 }
 
 export interface SubscriptionPackage {
@@ -49,7 +66,7 @@ export interface SubscriptionPackage {
     priceString: string;
     price: number;
   };
-  rcPackage: PurchasesPackage;
+  rcPackage: any;
 }
 
 const NOTIFIED_TRANSACTIONS_KEY = '@ronaldify_notified_transactions';
@@ -68,8 +85,6 @@ function formatPriceString(priceString: string): string {
   }
   return priceString;
 }
-
-
 
 async function getNotifiedTransactions(): Promise<Set<string>> {
   try {
@@ -97,8 +112,8 @@ interface SubscriptionContextValue {
   isPurchasing: boolean;
   isRestoring: boolean;
   packages: SubscriptionPackage[];
-  currentOffering: PurchasesOffering | null | undefined;
-  customerInfo: CustomerInfo | null;
+  currentOffering: any;
+  customerInfo: any;
   purchasePackage: (pkg: SubscriptionPackage) => Promise<boolean>;
   restorePurchases: () => Promise<boolean>;
   refetchCustomerInfo: () => void;
@@ -115,9 +130,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const notificationSentRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (authUser && rcConfigured) {
+    if (authUser && rcConfigured && Purchases) {
       console.log('Logging in to RevenueCat with user:', authUser.uid);
-      Purchases.logIn(authUser.uid).catch(err => {
+      Purchases.logIn(authUser.uid).catch((err: any) => {
         console.log('RevenueCat login error:', err);
       });
     }
@@ -126,31 +141,30 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const customerInfoQuery = useQuery({
     queryKey: ['customerInfo', rcConfigured],
     queryFn: async () => {
-      if (!rcConfigured) return null;
+      if (!rcConfigured || !Purchases) return null;
       console.log('Fetching customer info...');
       const info = await Purchases.getCustomerInfo();
       console.log('Customer info:', info.entitlements.active);
       return info;
     },
-    enabled: !!authUser && rcConfigured,
+    enabled: !!authUser && rcConfigured && !!Purchases,
     staleTime: 1000 * 60 * 5,
   });
 
   const offeringsQuery = useQuery({
     queryKey: ['offerings', rcConfigured],
     queryFn: async () => {
-      if (!rcConfigured) {
+      if (!rcConfigured || !Purchases) {
         console.log('RevenueCat not configured, cannot fetch offerings');
         return null;
       }
       console.log('Fetching offerings from RevenueCat...');
-      console.log('Platform:', Platform.OS, '__DEV__:', __DEV__);
       try {
         const offerings = await Purchases.getOfferings();
         console.log('Offerings response:', JSON.stringify({
           current: offerings.current?.identifier,
           packagesCount: offerings.current?.availablePackages.length,
-          packages: offerings.current?.availablePackages.map(p => ({
+          packages: offerings.current?.availablePackages.map((p: any) => ({
             id: p.identifier,
             type: p.packageType,
             product: p.product.identifier,
@@ -163,7 +177,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     },
-    enabled: rcConfigured,
+    enabled: rcConfigured && !!Purchases,
     staleTime: 1000 * 60 * 5,
     retry: 3,
     retryDelay: 1000,
@@ -208,7 +222,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   }, [authUser]);
 
   const purchaseMutation = useMutation({
-    mutationFn: async (pkg: PurchasesPackage) => {
+    mutationFn: async (pkg: any) => {
+      if (!Purchases) throw new Error('RevenueCat not available');
       console.log('Purchasing package:', pkg.identifier);
       setIsPurchasing(true);
       try {
@@ -218,15 +233,13 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         setIsPurchasing(false);
       }
     },
-    onSuccess: async ({ customerInfo, packageType }) => {
+    onSuccess: async ({ customerInfo, packageType }: any) => {
       console.log('Purchase successful');
       queryClient.setQueryData(['customerInfo', rcConfigured], customerInfo);
       
       const purchaseTimestamp = Date.now();
       const productId = customerInfo.allPurchasedProductIdentifiers?.[customerInfo.allPurchasedProductIdentifiers.length - 1] || 'unknown';
       const transactionId = `${productId}_${purchaseTimestamp}`;
-      
-      console.log('Sending notification with transaction ID:', transactionId);
       
       sendSubscriptionNotification(packageType, transactionId, false).catch(err => {
         console.log('Notification send failed:', err);
@@ -239,11 +252,12 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
   const restoreMutation = useMutation({
     mutationFn: async () => {
+      if (!Purchases) throw new Error('RevenueCat not available');
       console.log('Restoring purchases...');
       const customerInfo = await Purchases.restorePurchases();
       return customerInfo;
     },
-    onSuccess: (customerInfo) => {
+    onSuccess: (customerInfo: any) => {
       console.log('Restore successful');
       queryClient.setQueryData(['customerInfo', rcConfigured], customerInfo);
     },
@@ -252,12 +266,12 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  const customerInfo = customerInfoQuery.data as CustomerInfo | null;
-  const isPro = customerInfo?.entitlements.active['Ronaldify Pro'] !== undefined;
+  const customerInfo = customerInfoQuery.data as any;
+  const isPro = customerInfo?.entitlements?.active?.['Ronaldify Pro'] !== undefined;
 
   const currentOffering = offeringsQuery.data?.current;
   
-  const packages: SubscriptionPackage[] = currentOffering?.availablePackages.map(pkg => ({
+  const packages: SubscriptionPackage[] = currentOffering?.availablePackages?.map((pkg: any) => ({
     identifier: pkg.identifier,
     packageType: pkg.packageType,
     product: {
@@ -291,7 +305,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const restorePurchases = useCallback(async (): Promise<boolean> => {
     try {
       const info = await restoreMutateAsync();
-      return info.entitlements.active['Ronaldify Pro'] !== undefined;
+      return info?.entitlements?.active?.['Ronaldify Pro'] !== undefined;
     } catch {
       return false;
     }

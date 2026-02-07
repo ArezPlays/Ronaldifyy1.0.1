@@ -2,14 +2,68 @@ import { useState, useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
-import * as AppleAuthentication from 'expo-apple-authentication';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
-import { makeRedirectUri } from 'expo-auth-session';
-import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
 
-WebBrowser.maybeCompleteAuthSession();
+let WebBrowser: any = null;
+let Google: any = null;
+let makeRedirectUri: any = null;
+let AppleAuthentication: any = null;
+let GoogleAuthProvider: any = null;
+let signInWithCredential: any = null;
+let firebaseAuth: any = null;
+let modulesLoaded = false;
+
+function loadModules() {
+  if (modulesLoaded) return;
+  modulesLoaded = true;
+
+  try {
+    WebBrowser = require('expo-web-browser');
+    console.log('[Auth] expo-web-browser loaded');
+  } catch (e: any) {
+    console.log('[Auth] expo-web-browser load error:', e?.message);
+  }
+
+  try {
+    if (WebBrowser?.maybeCompleteAuthSession) {
+      WebBrowser.maybeCompleteAuthSession();
+    }
+  } catch (e: any) {
+    console.log('[Auth] maybeCompleteAuthSession error:', e?.message);
+  }
+
+  try {
+    Google = require('expo-auth-session/providers/google');
+    const authSession = require('expo-auth-session');
+    makeRedirectUri = authSession.makeRedirectUri;
+    console.log('[Auth] expo-auth-session loaded');
+  } catch (e: any) {
+    console.log('[Auth] expo-auth-session load error:', e?.message);
+  }
+
+  try {
+    AppleAuthentication = require('expo-apple-authentication');
+    console.log('[Auth] expo-apple-authentication loaded');
+  } catch (e: any) {
+    console.log('[Auth] expo-apple-authentication load error:', e?.message);
+  }
+
+  try {
+    const firebaseAuthModule = require('firebase/auth');
+    GoogleAuthProvider = firebaseAuthModule?.GoogleAuthProvider;
+    signInWithCredential = firebaseAuthModule?.signInWithCredential;
+    const firebaseLib = require('@/lib/firebase');
+    firebaseAuth = firebaseLib?.auth;
+    console.log('[Auth] Firebase auth loaded, auth available:', !!firebaseAuth);
+  } catch (e: any) {
+    console.log('[Auth] Firebase auth load error:', e?.message);
+  }
+}
+
+try {
+  loadModules();
+} catch (e: any) {
+  console.log('[Auth] Module loading failed entirely:', e?.message);
+}
 
 export interface AuthUser {
   uid: string;
@@ -34,18 +88,35 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     isAuthenticated: false,
   });
 
-  const redirectUri = makeRedirectUri({
-    native: 'app.rork.ronaldify_5ml8ava://oauth2redirect',
-  });
+  let redirectUri = '';
+  try {
+    if (makeRedirectUri) {
+      redirectUri = makeRedirectUri({
+        native: 'app.rork.ronaldify_5ml8ava://oauth2redirect',
+      });
+    }
+  } catch (e: any) {
+    console.log('[GoogleAuth] makeRedirectUri error:', e?.message);
+  }
 
   console.log('[GoogleAuth] Redirect URI:', redirectUri);
 
-  const [_request, response, promptAsync] = Google.useAuthRequest({
-    iosClientId: '199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9.apps.googleusercontent.com',
-    androidClientId: '199378159937-rspmgvphvs92sbmdfnhbp9m6719pmbkj.apps.googleusercontent.com',
-    webClientId: process.env.EXPO_PUBLIC_FIREBASE_WEB_CLIENT_ID,
-    redirectUri,
-  });
+  let googleAuthRequest: any = [null, null, null];
+  try {
+    if (Google?.useAuthRequest) {
+      googleAuthRequest = Google.useAuthRequest({
+        iosClientId: '199378159937-1m8jsjuoaqinilha19nnlik3rpbba7q9.apps.googleusercontent.com',
+        androidClientId: '199378159937-rspmgvphvs92sbmdfnhbp9m6719pmbkj.apps.googleusercontent.com',
+        webClientId: process.env.EXPO_PUBLIC_FIREBASE_WEB_CLIENT_ID,
+        redirectUri,
+      });
+    }
+  } catch (e: any) {
+    console.log('[GoogleAuth] useAuthRequest error:', e?.message);
+    googleAuthRequest = [null, null, null];
+  }
+
+  const [_request, response, promptAsync] = googleAuthRequest;
 
   useEffect(() => {
     loadStoredUser();
@@ -67,9 +138,23 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const handleGoogleFirebaseLogin = async (idToken: string) => {
     try {
+      if (!GoogleAuthProvider || !signInWithCredential || !firebaseAuth) {
+        console.log('[GoogleAuth] Firebase auth not available');
+        const fallbackUser: AuthUser = {
+          uid: `google_${Date.now()}`,
+          email: 'google@user.com',
+          displayName: 'Google User',
+          photoURL: null,
+          provider: 'google',
+        };
+        await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(fallbackUser));
+        setState({ user: fallbackUser, isLoading: false, isAuthenticated: true });
+        return;
+      }
+
       console.log('[GoogleAuth] Signing into Firebase with id_token...');
       const credential = GoogleAuthProvider.credential(idToken);
-      const result = await signInWithCredential(auth, credential);
+      const result = await signInWithCredential(firebaseAuth, credential);
       const firebaseUser = result.user;
 
       console.log('[GoogleAuth] Firebase sign-in successful:', {
@@ -122,8 +207,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const signInWithApple = useCallback(async (): Promise<AuthUser> => {
     console.log('Starting Apple Sign In...');
     
-    if (Platform.OS === 'web') {
-      console.log('Apple Sign In not available on web, using fallback');
+    if (Platform.OS === 'web' || !AppleAuthentication) {
+      console.log('Apple Sign In not available, using fallback');
       const fallbackUser: AuthUser = {
         uid: `apple_web_${Date.now()}`,
         email: 'user@icloud.com',
@@ -208,6 +293,11 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const signInWithGoogle = useCallback(async (): Promise<AuthUser> => {
     console.log('[GoogleAuth] Starting Firebase Google Sign In...');
     console.log('[GoogleAuth] Platform:', Platform.OS);
+
+    if (!promptAsync) {
+      console.log('[GoogleAuth] promptAsync not available');
+      throw new Error('Google Sign In is not available');
+    }
 
     try {
       const result = await promptAsync();

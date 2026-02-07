@@ -2,9 +2,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { trpc, trpcClient } from "@/lib/trpc";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, Component } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { UserProvider, useUser } from "@/contexts/UserContext";
@@ -246,6 +247,78 @@ function AppProviders({ children }: { children: React.ReactNode }) {
   );
 }
 
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class AppErrorBoundary extends Component<{ children: React.ReactNode }, ErrorBoundaryState> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.log('[ErrorBoundary] Caught error:', error?.message);
+    console.log('[ErrorBoundary] Component stack:', errorInfo?.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={errorStyles.container}>
+          <Text style={errorStyles.title}>Something went wrong</Text>
+          <Text style={errorStyles.message}>{this.state.error?.message || 'Unknown error'}</Text>
+          <TouchableOpacity
+            style={errorStyles.button}
+            onPress={() => this.setState({ hasError: false, error: null })}
+          >
+            <Text style={errorStyles.buttonText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const errorStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    backgroundColor: '#0F0F1A',
+    padding: 24,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: 'bold' as const,
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  message: {
+    fontSize: 14,
+    color: '#A0A0B0',
+    textAlign: 'center' as const,
+    marginBottom: 24,
+  },
+  button: {
+    backgroundColor: '#00D084',
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
+});
+
 export default function RootLayout() {
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -255,15 +328,17 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <AppProviders>
-            <ThemedStatusBar />
-            <RootLayoutNav />
-          </AppProviders>
-        </GestureHandlerRootView>
-      </QueryClientProvider>
-    </trpc.Provider>
+    <AppErrorBoundary>
+      <trpc.Provider client={trpcClient} queryClient={queryClient}>
+        <QueryClientProvider client={queryClient}>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <AppProviders>
+              <ThemedStatusBar />
+              <RootLayoutNav />
+            </AppProviders>
+          </GestureHandlerRootView>
+        </QueryClientProvider>
+      </trpc.Provider>
+    </AppErrorBoundary>
   );
 }
