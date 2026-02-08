@@ -72,6 +72,13 @@ try {
   isConfigured = false;
 }
 
+export interface TrialInfo {
+  duration: number;
+  unit: string;
+  priceString: string;
+  price: number;
+}
+
 export interface SubscriptionPackage {
   identifier: string;
   packageType: string;
@@ -82,6 +89,7 @@ export interface SubscriptionPackage {
     priceString: string;
     price: number;
   };
+  trialInfo: TrialInfo | null;
   rcPackage: any;
 }
 
@@ -288,18 +296,32 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
   const currentOffering = offeringsQuery.data?.current;
   
-  const packages: SubscriptionPackage[] = currentOffering?.availablePackages?.map((pkg: any) => ({
-    identifier: pkg.identifier,
-    packageType: pkg.packageType,
-    product: {
-      identifier: pkg.product.identifier,
-      title: pkg.product.title,
-      description: pkg.product.description,
-      priceString: formatPriceString(pkg.product.priceString),
-      price: pkg.product.price,
-    },
-    rcPackage: pkg,
-  })) || [];
+  const packages: SubscriptionPackage[] = currentOffering?.availablePackages?.map((pkg: any) => {
+    let trialInfo: TrialInfo | null = null;
+    const intro = pkg.product?.introPrice;
+    if (intro && intro.price === 0) {
+      trialInfo = {
+        duration: intro.periodNumberOfUnits || 3,
+        unit: intro.periodUnit || 'DAY',
+        priceString: intro.priceString || '$0.00',
+        price: intro.price,
+      };
+      console.log('[RevenueCat] Trial info for', pkg.identifier, ':', JSON.stringify(trialInfo));
+    }
+    return {
+      identifier: pkg.identifier,
+      packageType: pkg.packageType,
+      product: {
+        identifier: pkg.product.identifier,
+        title: pkg.product.title,
+        description: pkg.product.description,
+        priceString: formatPriceString(pkg.product.priceString),
+        price: pkg.product.price,
+      },
+      trialInfo,
+      rcPackage: pkg,
+    };
+  }) || [];
 
   console.log('Packages state:', { packagesCount: packages.length, rcConfigured, offeringsLoading: offeringsQuery.isLoading, offeringsError: offeringsQuery.error?.message });
   

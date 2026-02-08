@@ -7,7 +7,8 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  Linking
+  Linking,
+  Platform
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -20,9 +21,10 @@ import {
   Target, 
   Sparkles, 
   Zap,
-  Shield
+  Shield,
+  Gift
 } from 'lucide-react-native';
-import { useSubscription, SubscriptionPackage } from '@/contexts/SubscriptionContext';
+import { useSubscription, SubscriptionPackage, TrialInfo } from '@/contexts/SubscriptionContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -39,7 +41,11 @@ function getPackageLabelKey(packageType: string): 'weekly' | 'monthly' | 'yearly
   return 'monthly';
 }
 
-function getPackageBadgeText(packageType: string): string | null {
+function getPackageBadgeText(packageType: string, trialInfo: TrialInfo | null): string | null {
+  if (trialInfo && Platform.OS === 'ios') {
+    const days = trialInfo.unit === 'DAY' ? trialInfo.duration : trialInfo.duration * (trialInfo.unit === 'WEEK' ? 7 : 30);
+    return `${days}-DAY FREE TRIAL`;
+  }
   if (packageType === '$rc_monthly') return 'MOST POPULAR';
   if (packageType === '$rc_annual') return 'SAVE 50%';
   return null;
@@ -194,7 +200,7 @@ export default function PaywallScreen() {
               {packages.map((pkg) => {
                 const isSelected = selectedPackage?.identifier === pkg.identifier;
                 const label = getPackageLabel(pkg.packageType);
-                const badgeText = getPackageBadgeText(pkg.packageType);
+                const badgeText = getPackageBadgeText(pkg.packageType, pkg.trialInfo);
                 
                 return (
                   <TouchableOpacity
@@ -210,7 +216,8 @@ export default function PaywallScreen() {
                     {badgeText && (
                       <View style={[
                         dynamicStyles.savingsBadge,
-                        pkg.packageType === '$rc_annual' && dynamicStyles.savingsBadgeBest
+                        pkg.packageType === '$rc_annual' && !pkg.trialInfo && dynamicStyles.savingsBadgeBest,
+                        pkg.trialInfo && Platform.OS === 'ios' && dynamicStyles.savingsBadgeTrial
                       ]}>
                         <Text style={dynamicStyles.savingsBadgeText}>{badgeText}</Text>
                       </View>
@@ -227,7 +234,10 @@ export default function PaywallScreen() {
                       <View style={dynamicStyles.packageInfo}>
                         <Text style={dynamicStyles.packageLabel}>{label}</Text>
                         <Text style={dynamicStyles.packageDescription}>
-                          {pkg.product.priceString}/{label === t.weekly ? 'week' : label === t.yearly ? 'year' : 'month'}
+                          {pkg.trialInfo && Platform.OS === 'ios'
+                            ? `Free for ${pkg.trialInfo.unit === 'DAY' ? pkg.trialInfo.duration : pkg.trialInfo.duration * 7} days, then ${pkg.product.priceString}/${label === t.weekly ? 'week' : label === t.yearly ? 'year' : 'month'}`
+                            : `${pkg.product.priceString}/${label === t.weekly ? 'week' : label === t.yearly ? 'year' : 'month'}`
+                          }
                         </Text>
                       </View>
                       
@@ -243,6 +253,15 @@ export default function PaywallScreen() {
                   </TouchableOpacity>
                 );
               })}
+            </View>
+          )}
+
+          {selectedPackage?.trialInfo && Platform.OS === 'ios' && (
+            <View style={dynamicStyles.trialBanner}>
+              <Gift size={18} color={colors.primary} />
+              <Text style={dynamicStyles.trialBannerText}>
+                Start your {selectedPackage.trialInfo.unit === 'DAY' ? selectedPackage.trialInfo.duration : selectedPackage.trialInfo.duration * 7}-day free trial — cancel anytime
+              </Text>
             </View>
           )}
 
@@ -262,7 +281,10 @@ export default function PaywallScreen() {
                 <ActivityIndicator size="small" color={colors.black} />
               ) : (
                 <Text style={dynamicStyles.ctaText}>
-                  {`${t.continueWith} ${selectedPackage ? getPackageLabel(selectedPackage.packageType) : ''}`}
+                  {selectedPackage?.trialInfo && Platform.OS === 'ios'
+                    ? `Start Free Trial`
+                    : `${t.continueWith} ${selectedPackage ? getPackageLabel(selectedPackage.packageType) : ''}`
+                  }
                 </Text>
               )}
             </LinearGradient>
@@ -444,6 +466,9 @@ const createDynamicStyles = (colors: any) => StyleSheet.create({
   savingsBadgeBest: {
     backgroundColor: '#FF6B35',
   },
+  savingsBadgeTrial: {
+    backgroundColor: '#00C853',
+  },
   savingsBadgeText: {
     fontSize: 10,
     fontWeight: '800' as const,
@@ -548,5 +573,23 @@ const createDynamicStyles = (colors: any) => StyleSheet.create({
   termsLink: {
     color: colors.primary,
     textDecorationLine: 'underline',
+  },
+  trialBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: `${colors.primary}12`,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: `${colors.primary}30`,
+  },
+  trialBannerText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: colors.primary,
   },
 });
