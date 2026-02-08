@@ -11,8 +11,9 @@ import {
   Animated,
   ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Bot, Send, Sparkles, Lock, Flame, Trophy, Target, Zap, TrendingUp } from 'lucide-react-native';
+import { Bot, Send, Sparkles, Lock, Flame, Trophy, Target, Zap, TrendingUp, MessageCircle, Crown } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useUser } from '@/contexts/UserContext';
@@ -44,6 +45,37 @@ export default function CoachScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [hasStartedChat, setHasStartedChat] = useState(false);
+  const [userMessageCount, setUserMessageCount] = useState<number>(0);
+  const [messageCountLoaded, setMessageCountLoaded] = useState(false);
+
+  const FREE_MESSAGE_LIMIT = 8;
+  const hasReachedLimit = !isPro && messageCountLoaded && userMessageCount >= FREE_MESSAGE_LIMIT;
+  const remainingMessages = Math.max(0, FREE_MESSAGE_LIMIT - userMessageCount);
+
+  const COACH_MSG_COUNT_KEY = '@ronaldify_coach_msg_count';
+
+  useEffect(() => {
+    AsyncStorage.getItem(COACH_MSG_COUNT_KEY).then(val => {
+      const count = val ? parseInt(val, 10) : 0;
+      setUserMessageCount(isNaN(count) ? 0 : count);
+      setMessageCountLoaded(true);
+      console.log('[CoachLimit] Loaded message count:', count);
+    }).catch(err => {
+      console.log('[CoachLimit] Error loading count:', err);
+      setMessageCountLoaded(true);
+    });
+  }, []);
+
+  const incrementMessageCount = useCallback(async () => {
+    const newCount = userMessageCount + 1;
+    setUserMessageCount(newCount);
+    try {
+      await AsyncStorage.setItem(COACH_MSG_COUNT_KEY, String(newCount));
+      console.log('[CoachLimit] Saved message count:', newCount);
+    } catch (err) {
+      console.log('[CoachLimit] Error saving count:', err);
+    }
+  }, [userMessageCount]);
 
   const styles = createStyles(colors);
 
@@ -184,10 +216,18 @@ If they ask about drills, tell them to check the Drills tab.`;
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || isLoading) return;
+    if (hasReachedLimit) {
+      console.log('[CoachLimit] User has reached free message limit');
+      return;
+    }
 
     const userMessage = input.trim();
     setInput('');
     setHasStartedChat(true);
+
+    if (!isPro) {
+      await incrementMessageCount();
+    }
 
     console.log('Sending message to AI Coach:', userMessage);
 
@@ -201,12 +241,21 @@ If they ask about drills, tell them to check the Drills tab.`;
     } catch (err) {
       console.log('Error sending message:', err);
     }
-  }, [input, isLoading, sendMessage, userContext, hasStartedChat]);
+  }, [input, isLoading, sendMessage, userContext, hasStartedChat, hasReachedLimit, isPro, incrementMessageCount]);
 
   const handleQuickPrompt = useCallback(async (prompt: string) => {
     if (isLoading) return;
+    if (hasReachedLimit) {
+      console.log('[CoachLimit] User has reached free message limit');
+      return;
+    }
     
     setHasStartedChat(true);
+
+    if (!isPro) {
+      await incrementMessageCount();
+    }
+
     console.log('Sending quick prompt to AI Coach:', prompt);
 
     const messageWithContext = `${userContext}\n\nUser: ${prompt}`;
@@ -217,7 +266,7 @@ If they ask about drills, tell them to check the Drills tab.`;
     } catch (err) {
       console.log('Error sending quick prompt:', err);
     }
-  }, [isLoading, sendMessage, userContext]);
+  }, [isLoading, sendMessage, userContext, hasReachedLimit, isPro, incrementMessageCount]);
 
   const renderFormattedText = useCallback((text: string, isUser: boolean) => {
     const parts: React.ReactNode[] = [];
@@ -432,38 +481,75 @@ If they ask about drills, tell them to check the Drills tab.`;
             </ScrollView>
           )}
 
-          <View style={styles.inputContainer}>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                value={input}
-                onChangeText={setInput}
-                placeholder={t.askCoachAnything}
-                placeholderTextColor={colors.textMuted}
-                multiline
-                maxLength={500}
-                returnKeyType="send"
-                onSubmitEditing={handleSendFromInput}
-                blurOnSubmit={false}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.sendButton,
-                  (!input.trim() || isLoading) && styles.sendButtonDisabled,
-                ]}
-                onPress={handleSendFromInput}
-                disabled={!input.trim() || isLoading}
-              >
-                <Send size={20} color={input.trim() && !isLoading ? '#000000' : colors.textMuted} />
-              </TouchableOpacity>
+          {hasReachedLimit ? (
+            <View style={styles.limitContainer}>
+              <View style={styles.limitCard}>
+                <View style={styles.limitIconRow}>
+                  <View style={styles.limitIconCircle}>
+                    <MessageCircle size={24} color="#FF6B35" />
+                  </View>
+                  <View style={styles.limitTextBlock}>
+                    <Text style={styles.limitTitle}>Free messages used up</Text>
+                    <Text style={styles.limitSubtitle}>
+                      You've used all {FREE_MESSAGE_LIMIT} free messages. Upgrade to Pro for unlimited coaching.
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={styles.limitUpgradeButton}
+                  onPress={() => router.push('/paywall')}
+                  activeOpacity={0.8}
+                >
+                  <Crown size={18} color="#000" />
+                  <Text style={styles.limitUpgradeText}>Unlock Unlimited Coaching</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            
-            {hasStartedChat && (
-              <Text style={styles.salesText}>
-                💡 Surprise your friends after only one month of Ronaldify — train smarter, play better, dominate the field!
-              </Text>
-            )}
-          </View>
+          ) : (
+            <View style={styles.inputContainer}>
+              {!isPro && messageCountLoaded && (
+                <View style={styles.msgCounterRow}>
+                  <MessageCircle size={14} color={remainingMessages <= 2 ? '#FF6B35' : colors.textMuted} />
+                  <Text style={[
+                    styles.msgCounterText,
+                    remainingMessages <= 2 && { color: '#FF6B35' },
+                  ]}>
+                    {remainingMessages} free message{remainingMessages !== 1 ? 's' : ''} left
+                  </Text>
+                </View>
+              )}
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  value={input}
+                  onChangeText={setInput}
+                  placeholder={t.askCoachAnything}
+                  placeholderTextColor={colors.textMuted}
+                  multiline
+                  maxLength={500}
+                  returnKeyType="send"
+                  onSubmitEditing={handleSendFromInput}
+                  blurOnSubmit={false}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.sendButton,
+                    (!input.trim() || isLoading) && styles.sendButtonDisabled,
+                  ]}
+                  onPress={handleSendFromInput}
+                  disabled={!input.trim() || isLoading}
+                >
+                  <Send size={20} color={input.trim() && !isLoading ? '#000000' : colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+              
+              {hasStartedChat && (
+                <Text style={styles.salesText}>
+                  💡 Surprise your friends after only one month of Ronaldify — train smarter, play better, dominate the field!
+                </Text>
+              )}
+            </View>
+          )}
         </Animated.View>
       </KeyboardAvoidingView>
     </View>
@@ -755,5 +841,73 @@ const createStyles = (colors: any) => StyleSheet.create({
     textAlign: 'center',
     marginTop: 12,
     paddingHorizontal: 20,
+  },
+  limitContainer: {
+    padding: 16,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 90,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  limitCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,107,53,0.25)',
+  },
+  limitIconRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 14,
+    marginBottom: 18,
+  },
+  limitIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,107,53,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  limitTextBlock: {
+    flex: 1,
+  },
+  limitTitle: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: colors.text,
+    marginBottom: 4,
+  },
+  limitSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  limitUpgradeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFD700',
+    borderRadius: 14,
+    paddingVertical: 14,
+    gap: 8,
+  },
+  limitUpgradeText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#000',
+  },
+  msgCounterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  msgCounterText: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontWeight: '500' as const,
   },
 });
