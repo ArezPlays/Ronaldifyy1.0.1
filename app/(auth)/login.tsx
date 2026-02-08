@@ -24,11 +24,17 @@ export default function LoginScreen() {
   
   const [loading, setLoading] = useState<'apple' | 'guest' | null>(null);
 
+  const { updatePersonalization } = usePersonalization();
+
   const handleAppleSignIn = async () => {
     try {
       setLoading('apple');
-      await signInWithApple();
-      console.log('Apple sign in successful');
+      const appleUser = await signInWithApple();
+      console.log('Apple sign in successful, name:', appleUser.displayName, 'email:', appleUser.email);
+      if (appleUser.displayName) {
+        await updatePersonalization({ name: appleUser.displayName });
+        console.log('[Login] Synced Apple name to personalization:', appleUser.displayName);
+      }
     } catch (error: any) {
       console.log('Apple sign in error:', error);
       if (error?.message !== 'Sign in was cancelled') {

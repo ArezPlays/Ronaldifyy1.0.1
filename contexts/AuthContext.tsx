@@ -39,6 +39,35 @@ interface AuthState {
 }
 
 const AUTH_STORAGE_KEY = '@ronaldify_auth_user';
+const APPLE_CREDENTIALS_KEY = '@ronaldify_apple_credentials';
+
+async function getStoredAppleCredentials(appleUserId: string): Promise<{ email: string | null; displayName: string | null }> {
+  try {
+    const stored = await AsyncStorage.getItem(`${APPLE_CREDENTIALS_KEY}_${appleUserId}`);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      console.log('[AppleAuth] Found stored Apple credentials for', appleUserId, parsed);
+      return parsed;
+    }
+  } catch (e) {
+    console.log('[AppleAuth] Error reading stored Apple credentials:', e);
+  }
+  return { email: null, displayName: null };
+}
+
+async function saveAppleCredentials(appleUserId: string, email: string | null, displayName: string | null) {
+  try {
+    const existing = await getStoredAppleCredentials(appleUserId);
+    const merged = {
+      email: email || existing.email,
+      displayName: displayName || existing.displayName,
+    };
+    await AsyncStorage.setItem(`${APPLE_CREDENTIALS_KEY}_${appleUserId}`, JSON.stringify(merged));
+    console.log('[AppleAuth] Saved Apple credentials for', appleUserId, merged);
+  } catch (e) {
+    console.log('[AppleAuth] Error saving Apple credentials:', e);
+  }
+}
 
 export const [AuthProvider, useAuth] = createContextHook(() => {
   const [state, setState] = useState<AuthState>({
@@ -102,30 +131,45 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         fullName: credential.fullName,
       });
 
-      const displayName = credential.fullName
+      const freshName = credential.fullName
         ? [credential.fullName.givenName, credential.fullName.familyName]
             .filter(Boolean)
             .join(' ') || null
         : null;
 
-      const storedUser = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
-      let existingName: string | null = null;
-      if (storedUser) {
-        const parsed = JSON.parse(storedUser) as AuthUser;
-        if (parsed.uid === credential.user && parsed.displayName) {
-          existingName = parsed.displayName;
+      const freshEmail = credential.email || null;
+
+      const storedCreds = await getStoredAppleCredentials(credential.user);
+
+      const storedAuthUser = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
+      let previousName: string | null = null;
+      let previousEmail: string | null = null;
+      if (storedAuthUser) {
+        const parsed = JSON.parse(storedAuthUser) as AuthUser;
+        if (parsed.uid === credential.user) {
+          if (parsed.displayName && parsed.displayName !== 'Apple User') {
+            previousName = parsed.displayName;
+          }
+          if (parsed.email && parsed.email !== 'private@apple.com' && parsed.email !== '') {
+            previousEmail = parsed.email;
+          }
         }
       }
 
+      const resolvedName = freshName || storedCreds.displayName || previousName;
+      const resolvedEmail = freshEmail || storedCreds.email || previousEmail;
+
+      await saveAppleCredentials(credential.user, resolvedEmail, resolvedName);
+
       const user: AuthUser = {
         uid: credential.user,
-        email: credential.email || 'private@apple.com',
-        displayName: displayName || existingName || 'Apple User',
+        email: resolvedEmail || '',
+        displayName: resolvedName || null,
         photoURL: null,
         provider: 'apple',
       };
       await saveAndSetUser(user);
-      console.log('[AppleAuth] Success:', user.email);
+      console.log('[AppleAuth] Success - name:', user.displayName, 'email:', user.email);
       return user;
     } catch (error: any) {
       console.log('[AppleAuth] Error:', error);

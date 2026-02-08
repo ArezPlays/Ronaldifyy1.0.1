@@ -14,15 +14,23 @@ try {
 }
 
 function getRCApiKey() {
-  if (__DEV__ || Platform.OS === 'web') {
-    return process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY || '';
+  const isDevOrWeb = __DEV__ || Platform.OS === 'web';
+  console.log('[RevenueCat] getRCApiKey - Platform:', Platform.OS, '__DEV__:', __DEV__, 'isDevOrWeb:', isDevOrWeb);
+  
+  if (isDevOrWeb) {
+    const testKey = process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY || '';
+    console.log('[RevenueCat] Using TEST STORE key (Expo Go / Web), key available:', !!testKey);
+    return testKey;
   }
+  
   const key = Platform.select({
     ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY,
     android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY,
     default: process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
   }) || '';
-  console.log('[RevenueCat] API key selected for platform:', Platform.OS, 'Key available:', !!key);
+  
+  const storeName = Platform.OS === 'ios' ? 'APP STORE (TestFlight/Production)' : 'PLAY STORE (Android APK/AAB)';
+  console.log('[RevenueCat] Using', storeName, 'key, key available:', !!key);
   return key;
 }
 
@@ -161,13 +169,14 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       console.log('Fetching offerings from RevenueCat...');
       try {
         const offerings = await Purchases.getOfferings();
-        console.log('Offerings response:', JSON.stringify({
+        const storeName = __DEV__ ? 'Test Store' : Platform.OS === 'ios' ? 'App Store' : Platform.OS === 'android' ? 'Play Store' : 'Unknown';
+        console.log('[RevenueCat] Offerings loaded from', storeName, JSON.stringify({
           current: offerings.current?.identifier,
           packagesCount: offerings.current?.availablePackages.length,
           packages: offerings.current?.availablePackages.map((p: any) => ({
             id: p.identifier,
             type: p.packageType,
-            product: p.product.identifier,
+            productId: p.product.identifier,
             price: p.product.priceString
           }))
         }));

@@ -87,7 +87,15 @@ export default function ProfileScreen() {
             
             <View style={styles.profileInfo}>
               <Text style={styles.profileName}>{personalizationData?.name || profile?.name || t.player}</Text>
-              <Text style={styles.profileEmail}>{isGuest ? 'Local account' : (user?.email || '')}</Text>
+              <Text style={styles.profileEmail}>
+                {isGuest 
+                  ? 'Local account' 
+                  : user?.provider === 'apple' 
+                    ? (user?.email && user.email !== 'private@apple.com' && user.email !== '' 
+                      ? user.email 
+                      : 'Apple Account')
+                    : (user?.email || '')}
+              </Text>
               <View style={styles.profileTags}>
                 <View style={styles.profileTag}>
                   <Text style={styles.profileTagText}>{positionLabel}</Text>
