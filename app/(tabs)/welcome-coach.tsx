@@ -14,6 +14,7 @@ import { Sparkles, ChevronRight, Crown, Play, Lock, X } from 'lucide-react-nativ
 import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/UserContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { usePersonalization } from '@/contexts/PersonalizationContext';
 import { POSITIONS } from '@/constants/positions';
 import { TRAINING_GOALS } from '@/constants/skills';
 import { getRecommendedDrills, Drill } from '@/mocks/drills';
@@ -22,6 +23,7 @@ export default function WelcomeCoachScreen() {
   const router = useRouter();
   const { profile, updateProfile } = useUser();
   const { isPro } = useSubscription();
+  const { data: personalizationData } = usePersonalization();
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -38,7 +40,8 @@ export default function WelcomeCoachScreen() {
     ? TRAINING_GOALS.find(g => g.id === primaryGoal)?.label 
     : 'improving';
 
-  const welcomeMessage = `Welcome${profile?.name ? `, ${profile.name}` : ''}! As a ${positionLabel} focused on ${goalLabel?.toLowerCase()}, I've analyzed thousands of training sessions to create your personalized program.`;
+  const displayName = personalizationData?.name || profile?.name || '';
+  const welcomeMessage = `Welcome${displayName ? `, ${displayName}` : ''}! As a ${positionLabel} focused on ${goalLabel?.toLowerCase()}, I've analyzed thousands of training sessions to create your personalized program.`;
 
   const recommendedDrills = getRecommendedDrills(
     profile?.position || null,

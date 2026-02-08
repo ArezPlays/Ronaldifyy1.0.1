@@ -81,11 +81,12 @@ export const [UserProvider, useUser] = createContextHook(() => {
     console.log('Profile updated:', updates);
   }, [profile]);
 
-  const completeOnboarding = useCallback(async (data: OnboardingData) => {
+  const completeOnboarding = useCallback(async (data: OnboardingData, personalizationName?: string) => {
     if (!profile) return;
     
     const updatedProfile: UserProfile = {
       ...profile,
+      ...(personalizationName ? { name: personalizationName } : {}),
       position: data.position,
       skillLevel: data.skillLevel,
       goals: data.goals,
@@ -95,7 +96,7 @@ export const [UserProvider, useUser] = createContextHook(() => {
     
     setProfile(updatedProfile);
     await saveProfileToStorage(updatedProfile);
-    console.log('Onboarding completed:', data);
+    console.log('Onboarding completed:', data, 'name:', updatedProfile.name);
   }, [profile]);
 
   const resetProfile = useCallback(async () => {

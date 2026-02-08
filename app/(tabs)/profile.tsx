@@ -20,6 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useUser } from '@/contexts/UserContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { usePersonalization } from '@/contexts/PersonalizationContext';
 import { POSITIONS } from '@/constants/positions';
 
 export default function ProfileScreen() {
@@ -29,6 +30,7 @@ export default function ProfileScreen() {
   const { isPro } = useSubscription();
   const { colors } = useTheme();
   const { t } = useLanguage();
+  const { data: personalizationData } = usePersonalization();
 
   const positionLabel = profile?.position 
     ? POSITIONS.find(p => p.id === profile.position)?.label 
@@ -84,7 +86,7 @@ export default function ProfileScreen() {
             </View>
             
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{profile?.name || t.player}</Text>
+              <Text style={styles.profileName}>{personalizationData?.name || profile?.name || t.player}</Text>
               <Text style={styles.profileEmail}>{isGuest ? 'Local account' : (user?.email || '')}</Text>
               <View style={styles.profileTags}>
                 <View style={styles.profileTag}>

@@ -15,10 +15,12 @@ import { Apple, ChevronLeft, ArrowRight } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import SocialButton from '@/components/SocialButton';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePersonalization } from '@/contexts/PersonalizationContext';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { signInWithApple, continueAsGuest } = useAuth();
+  const { data: personalizationData } = usePersonalization();
   
   const [loading, setLoading] = useState<'apple' | 'guest' | null>(null);
 
@@ -40,7 +42,7 @@ export default function LoginScreen() {
   const handleContinueWithoutSignIn = async () => {
     try {
       setLoading('guest');
-      await continueAsGuest();
+      await continueAsGuest(personalizationData?.name || undefined);
       console.log('Guest sign in successful');
     } catch (error) {
       console.log('Guest sign in error:', error);

@@ -136,19 +136,19 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     }
   }, []);
 
-  const continueAsGuest = useCallback(async (): Promise<AuthUser> => {
-    console.log('[GuestAuth] Continuing as guest...');
+  const continueAsGuest = useCallback(async (personalizationName?: string): Promise<AuthUser> => {
+    console.log('[GuestAuth] Continuing as guest, name:', personalizationName);
     const guestId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     
     const user: AuthUser = {
       uid: guestId,
       email: '',
-      displayName: 'Player',
+      displayName: personalizationName || 'Player',
       photoURL: null,
       provider: 'guest',
     };
     await saveAndSetUser(user);
-    console.log('[GuestAuth] Guest user created:', guestId);
+    console.log('[GuestAuth] Guest user created:', guestId, 'name:', user.displayName);
     return user;
   }, []);
 

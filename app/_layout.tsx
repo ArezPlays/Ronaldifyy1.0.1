@@ -67,7 +67,7 @@ function NavigationController({ children }: { children: React.ReactNode }) {
           position: personalizationData.position,
           skillLevel: personalizationData.skillLevel,
           goals: personalizationData.goals,
-        });
+        }, personalizationData.name || undefined);
       }
     };
     
