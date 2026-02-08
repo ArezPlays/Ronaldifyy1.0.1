@@ -53,6 +53,7 @@ export default function CoachScreen() {
   const remainingMessages = Math.max(0, FREE_MESSAGE_LIMIT - userMessageCount);
 
   const COACH_MSG_COUNT_KEY = '@ronaldify_coach_msg_count';
+  const COACH_HISTORY_KEY = '@ronaldify_coach_history';
 
   useEffect(() => {
     AsyncStorage.getItem(COACH_MSG_COUNT_KEY).then(val => {
@@ -63,6 +64,28 @@ export default function CoachScreen() {
     }).catch(err => {
       console.log('[CoachLimit] Error loading count:', err);
       setMessageCountLoaded(true);
+    });
+
+    AsyncStorage.getItem(COACH_HISTORY_KEY).then(val => {
+      if (val) {
+        try {
+          const parsed = JSON.parse(val) as ChatMessage[];
+          if (parsed.length > 0) {
+            const restored = parsed.map((m, i) => ({
+              ...m,
+              id: m.id.startsWith('saved-') ? m.id : `saved-${i}`,
+              timestamp: new Date(m.timestamp),
+            }));
+            setChatHistory(restored);
+            setHasStartedChat(true);
+            console.log('[CoachHistory] Loaded', restored.length, 'messages');
+          }
+        } catch (e) {
+          console.log('[CoachHistory] Error parsing history:', e);
+        }
+      }
+    }).catch(err => {
+      console.log('[CoachHistory] Error loading history:', err);
     });
   }, []);
 
@@ -191,7 +214,6 @@ If they ask about drills, tell them to check the Drills tab.`;
       const newMessages: ChatMessage[] = messages.map((m, idx) => {
         let content = m.parts?.filter(p => p.type === 'text').map(p => (p as { type: 'text'; text: string }).text).join('') || '';
         
-        // Filter out system context from first user message display
         if (m.role === 'user' && content.includes('User profile:')) {
           const userMessageMatch = content.match(/User: (.+)$/s);
           if (userMessageMatch) {
@@ -206,7 +228,18 @@ If they ask about drills, tell them to check the Drills tab.`;
           timestamp: new Date(),
         };
       });
-      setChatHistory(newMessages);
+      setChatHistory(prev => {
+        const savedMessages = prev.filter(m => m.id.startsWith('saved-'));
+        const newContentSet = new Set(newMessages.map(m => m.content.trim() + '|' + m.role));
+        const filteredSaved = savedMessages.filter(
+          m => !newContentSet.has(m.content.trim() + '|' + m.role)
+        );
+        const final = [...filteredSaved, ...newMessages];
+        AsyncStorage.setItem(COACH_HISTORY_KEY, JSON.stringify(final)).catch(err => {
+          console.log('[CoachHistory] Error saving:', err);
+        });
+        return final;
+      });
     }
   }, [messages]);
 
