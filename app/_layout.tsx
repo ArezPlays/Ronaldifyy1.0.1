@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments, useRootNavigationState } from "expo-router";
-import { trpc, trpcClient } from "@/lib/trpc";
+import { trpc, trpcReactClient } from "@/lib/trpc";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef, useState, Component } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -376,7 +376,7 @@ export default function RootLayout() {
 
   return (
     <AppErrorBoundary>
-      <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <trpc.Provider client={trpcReactClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
             <AppProviders>

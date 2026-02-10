@@ -1,4 +1,4 @@
-import { httpLink } from "@trpc/client";
+import { createTRPCClient, httpLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import superjson from "superjson";
 
@@ -15,21 +15,23 @@ const getBaseUrl = () => {
   return url;
 };
 
-let trpcClientInstance: ReturnType<typeof trpc.createClient> | null = null;
+const trpcUrl = `${getBaseUrl()}/api/trpc`;
+
+let trpcReactClientInstance: ReturnType<typeof trpc.createClient> | null = null;
 
 try {
-  trpcClientInstance = trpc.createClient({
+  trpcReactClientInstance = trpc.createClient({
     links: [
       httpLink({
-        url: `${getBaseUrl()}/api/trpc`,
+        url: trpcUrl,
         transformer: superjson,
       }),
     ],
   });
-  console.log('[TRPC] Client created successfully');
+  console.log('[TRPC] React client created successfully');
 } catch (error: any) {
-  console.log('[TRPC] Client creation error:', error?.message || error);
-  trpcClientInstance = trpc.createClient({
+  console.log('[TRPC] React client creation error:', error?.message || error);
+  trpcReactClientInstance = trpc.createClient({
     links: [
       httpLink({
         url: 'https://localhost:3000/api/trpc',
@@ -39,4 +41,15 @@ try {
   });
 }
 
-export const trpcClient = trpcClientInstance!;
+export const trpcReactClient = trpcReactClientInstance!;
+
+export const trpcClient = createTRPCClient<AppRouter>({
+  links: [
+    httpLink({
+      url: trpcUrl,
+      transformer: superjson,
+    }),
+  ],
+});
+
+console.log('[TRPC] Vanilla client created, url:', trpcUrl);
