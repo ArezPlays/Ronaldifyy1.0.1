@@ -16,7 +16,14 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.rork.ronaldify-5ml8ava",
-      "usesAppleSignIn": true
+      "usesAppleSignIn": true,
+      "buildNumber": "7",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Ronaldify needs access to your camera to record training videos for AI analysis.",
+        "NSPhotoLibraryUsageDescription": "Ronaldify needs access to your photo library to select training videos for AI analysis.",
+        "NSMicrophoneUsageDescription": "Ronaldify needs access to your microphone to record audio with training videos.",
+        "UIBackgroundModes": ["remote-notification"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -35,10 +42,7 @@
               "pathPrefix": "/callback"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
     },
@@ -54,7 +58,29 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ronaldify needs access to your photos to select training videos.",
+          "cameraPermission": "Ronaldify needs access to your camera to record training videos."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#00D084"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0F0F1A",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
