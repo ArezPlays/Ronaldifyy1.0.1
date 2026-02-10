@@ -8,22 +8,19 @@
       "distribution": "internal",
       "env": {
         "NODE_ENV": "development"
-      },
-      "node": "20.19.4"
+      }
     },
     "preview": {
       "distribution": "internal",
       "env": {
         "NODE_ENV": "production"
-      },
-      "node": "20.19.4"
+      }
     },
     "production": {
       "autoIncrement": false,
       "env": {
         "NODE_ENV": "production"
       },
-      "node": "20.19.4",
       "android": {
         "buildType": "app-bundle"
       },
