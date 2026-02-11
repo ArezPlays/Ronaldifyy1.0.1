@@ -102,7 +102,7 @@ function NavigationController({ children }: { children: React.ReactNode }) {
     const inOnboardingGroup = segments[0] === "(onboarding)";
     const inTabsGroup = segments[0] === "(tabs)";
     const currentScreen = segments[0];
-    const tabScreen = segments[1];
+    const tabScreen = segments.length > 1 ? segments[1] : "";
 
     const allowedRootScreens = [
       "paywall",
