@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Home, Bot, Dumbbell, Video, User } from 'lucide-react-native';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useLanguage } from '@/contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { BlurView } from 'expo-blur';
 import { StyleSheet, View, Platform } from 'react-native';
 
