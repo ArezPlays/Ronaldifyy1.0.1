@@ -6,9 +6,9 @@ module.exports = function (api) {
       [
         "module-resolver",
         {
-          root: ["./"],
+          root: ["./app"],   // <-- points to app folder
           alias: {
-            "@": "./app"
+            "@": "./app"      // <-- same as root, so @/ works
           }
         }
       ]
