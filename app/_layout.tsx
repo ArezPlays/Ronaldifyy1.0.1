@@ -1,21 +1,21 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments, useRootNavigationState } from "expo-router";
-import { trpc, trpcReactClient } from "./lib/trpc";
+import { trpc, trpcReactClient } from "../lib/trpc";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef, useState, Component } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import { UserProvider, useUser } from "./contexts/UserContext";
-import { SubscriptionProvider, useSubscription } from "./contexts/SubscriptionContext";
-import { PersonalizationProvider, usePersonalization } from "./contexts/PersonalizationContext";
-import { NotificationProvider } from "./contexts/NotificationContext";
-import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
-import { LanguageProvider } from "./contexts/LanguageContext";
-import { TrainingProvider } from "./contexts/TrainingContext";
-import LevelUpCelebration from "./components/LevelUpCelebration";
+import { AuthProvider, useAuth } from "../contexts/AuthContext";
+import { UserProvider, useUser } from "../contexts/UserContext";
+import { SubscriptionProvider, useSubscription } from "../contexts/SubscriptionContext";
+import { PersonalizationProvider, usePersonalization } from "../contexts/PersonalizationContext";
+import { NotificationProvider } from "../contexts/NotificationContext";
+import { ThemeProvider, useTheme } from "../contexts/ThemeContext";
+import { LanguageProvider } from "../contexts/LanguageContext";
+import { TrainingProvider } from "../contexts/TrainingContext";
+import LevelUpCelebration from "../components/LevelUpCelebration";
 
 SplashScreen.preventAutoHideAsync();
 
