@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ronaldify",
     "slug": "ronaldify-5ml8ava",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "rork-app",
@@ -17,7 +17,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "app.rork.ronaldify-5ml8ava",
       "usesAppleSignIn": true,
-      "buildNumber": "7",
+      "buildNumber": "8",
       "infoPlist": {
         "NSCameraUsageDescription": "Ronaldify needs access to your camera to record training videos for AI analysis.",
         "NSPhotoLibraryUsageDescription": "Ronaldify needs access to your photo library to select training videos for AI analysis.",
@@ -31,7 +31,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "app.rork.ronaldify_5ml8ava",
-      "versionCode": 17,
+      "versionCode": 18,
       "intentFilters": [
         {
           "action": "VIEW",
