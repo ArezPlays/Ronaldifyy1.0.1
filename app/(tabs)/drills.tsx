@@ -59,6 +59,8 @@ export default function DrillsScreen() {
   const [showCongrats, setShowCongrats] = useState(false);
   const [completedLevelInfo, setCompletedLevelInfo] = useState<{ skillName: string; levelName: string; xpReward: number } | null>(null);
   const congratsAnim = useRef(new Animated.Value(0)).current;
+  const skillModalAnim = useRef(new Animated.Value(0)).current;
+  const levelModalAnim = useRef(new Animated.Value(0)).current;
   const previousCompletedRef = useRef<Set<string>>(new Set());
 
   const selectedSkillPath = useMemo(() => {
@@ -135,9 +137,10 @@ export default function DrillsScreen() {
       router.push('/paywall');
       return;
     }
-    // Close modals after a short delay to prevent white flash
     router.push({ pathname: '/drill-session', params: { drillId } });
     setTimeout(() => {
+      levelModalAnim.setValue(0);
+      skillModalAnim.setValue(0);
       setSelectedLevel(null);
       setSelectedSkill(null);
     }, 100);
@@ -154,11 +157,41 @@ export default function DrillsScreen() {
 
   const openSkillPath = useCallback((skillId: TrainingGoal) => {
     setSelectedSkill(skillId);
-  }, []);
+    Animated.timing(skillModalAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  }, [skillModalAnim]);
+
+  const closeSkillModal = useCallback(() => {
+    Animated.timing(skillModalAnim, {
+      toValue: 0,
+      duration: 250,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start(() => {
+      setSelectedSkill(null);
+    });
+  }, [skillModalAnim]);
 
   const openLevel = useCallback((level: SkillMasteryLevel) => {
     setSelectedLevel(level);
-  }, []);
+    Animated.timing(levelModalAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  }, [levelModalAnim]);
+
+  const closeLevel = useCallback(() => {
+    Animated.timing(levelModalAnim, {
+      toValue: 0,
+      duration: 250,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start(() => {
+      setSelectedLevel(null);
+    });
+  }, [levelModalAnim]);
 
   const getLevelCompletionStatus = useCallback((path: SkillMasteryPath, level: SkillMasteryLevel) => {
     const completedCount = level.drillIds.filter((id: string) => isDrillCompleted(id)).length;
@@ -237,7 +270,8 @@ export default function DrillsScreen() {
           if (isProLocked) {
             router.push('/paywall');
           } else if (isUnlocked) {
-            openLevel(level);
+            closeSkillModal();
+            setTimeout(() => openLevel(level), 280);
           }
         }}
         activeOpacity={canAccess ? 0.7 : 0.8}
@@ -503,19 +537,20 @@ export default function DrillsScreen() {
       {/* Skill Path Modal */}
       <Modal
         visible={selectedSkill !== null && selectedLevel === null}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setSelectedSkill(null)}
+        animationType="none"
+        transparent={true}
+        onRequestClose={closeSkillModal}
       >
         {selectedSkillPath && (
-          <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={styles.modalOverlay}>
+            <Animated.View style={[styles.modalContainer, { backgroundColor: colors.background, opacity: skillModalAnim, transform: [{ translateY: skillModalAnim.interpolate({ inputRange: [0, 1], outputRange: [600, 0] }) }] }]}>
             <LinearGradient
               colors={[`${selectedSkillPath.color}30`, colors.background]}
               style={styles.modalHeader}
             >
               <TouchableOpacity 
                 style={styles.modalClose}
-                onPress={() => setSelectedSkill(null)}
+                onPress={closeSkillModal}
               >
                 <X size={24} color={colors.text} />
               </TouchableOpacity>
@@ -560,6 +595,7 @@ export default function DrillsScreen() {
               
               {selectedSkillPath.levels.map(level => renderLevelItem(selectedSkillPath, level))}
             </ScrollView>
+          </Animated.View>
           </View>
         )}
       </Modal>
@@ -567,19 +603,20 @@ export default function DrillsScreen() {
       {/* Level Drills Modal */}
       <Modal
         visible={selectedLevel !== null}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setSelectedLevel(null)}
+        animationType="none"
+        transparent={true}
+        onRequestClose={closeLevel}
       >
         {selectedLevel && selectedSkillPath && (
-          <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={styles.modalOverlay}>
+            <Animated.View style={[styles.modalContainer, { backgroundColor: colors.background, opacity: levelModalAnim, transform: [{ translateY: levelModalAnim.interpolate({ inputRange: [0, 1], outputRange: [600, 0] }) }] }]}>
             <LinearGradient
               colors={[`${selectedSkillPath.color}30`, colors.background]}
               style={styles.modalHeader}
             >
               <TouchableOpacity 
                 style={styles.modalClose}
-                onPress={() => setSelectedLevel(null)}
+                onPress={closeLevel}
               >
                 <X size={24} color={colors.text} />
               </TouchableOpacity>
@@ -690,6 +727,7 @@ export default function DrillsScreen() {
                 );
               })}
             </ScrollView>
+          </Animated.View>
           </View>
         )}
       </Modal>
@@ -1070,8 +1108,17 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
   modalContainer: {
     flex: 1,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
+    maxHeight: '92%',
   },
   modalHeader: {
     paddingTop: 20,
