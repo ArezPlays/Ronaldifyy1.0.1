@@ -2,10 +2,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments, useRootNavigationState } from "expo-router";
 import { trpc, trpcReactClient } from "@/lib/trpc";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useRef, useState, Component } from "react";
+import React, { useEffect, useRef, useState, useCallback, Component } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions, Platform } from "react-native";
+import { Image } from 'react-native';
 
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { UserProvider, useUser } from "@/contexts/UserContext";
@@ -355,23 +356,269 @@ const errorStyles = StyleSheet.create({
   },
 });
 
-export default function RootLayout() {
-  const [appReady, setAppReady] = useState(false);
+function LoadingScreen({ onFinished }: { onFinished: () => void }) {
+  const progress = useRef(new Animated.Value(0)).current;
+  const titleOpacity = useRef(new Animated.Value(0)).current;
+  const titleTranslateY = useRef(new Animated.Value(20)).current;
+  const subtitleOpacity = useRef(new Animated.Value(0)).current;
+  const bottomOpacity = useRef(new Animated.Value(0)).current;
+  const screenOpacity = useRef(new Animated.Value(1)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const [displayPercent, setDisplayPercent] = useState(0);
+  const { width: screenWidth } = Dimensions.get('window');
+  const barWidth = screenWidth - 80;
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setAppReady(true);
-      SplashScreen.hideAsync().catch((e) => {
-        console.log('[SplashScreen] hideAsync error (safe to ignore):', e);
+    SplashScreen.hideAsync().catch(() => {});
+
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(titleOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.timing(titleTranslateY, { toValue: 0, duration: 600, useNativeDriver: true }),
+      ]),
+      Animated.timing(subtitleOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(bottomOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+    ]).start();
+
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.05, duration: 1200, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+
+    const progressAnim = Animated.timing(progress, {
+      toValue: 1,
+      duration: 2400,
+      useNativeDriver: false,
+    });
+    progressAnim.start();
+
+    const listenerId = progress.addListener(({ value }) => {
+      setDisplayPercent(Math.round(value * 100));
+    });
+
+    const finishTimer = setTimeout(() => {
+      pulse.stop();
+      Animated.timing(screenOpacity, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }).start(() => {
+        onFinished();
       });
-    }, 600);
-    return () => clearTimeout(timer);
+    }, 2800);
+
+    return () => {
+      clearTimeout(finishTimer);
+      progress.removeListener(listenerId);
+      pulse.stop();
+    };
   }, []);
 
+  const progressWidth = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, barWidth],
+  });
+
+  return (
+    <Animated.View style={[loadStyles.container, { opacity: screenOpacity }]}>
+      <StatusBar style="light" />
+      <View style={loadStyles.topGlow} />
+
+      <View style={loadStyles.centerContent}>
+        <Animated.View style={[
+          loadStyles.titleContainer,
+          { opacity: titleOpacity, transform: [{ translateY: titleTranslateY }, { scale: pulseAnim }] },
+        ]}>
+          <View style={loadStyles.ballOuter}>
+            <View style={loadStyles.ballGlow} />
+            <Text style={loadStyles.ballEmoji}>⚽</Text>
+          </View>
+          <Text style={loadStyles.title}>Ronaldify</Text>
+        </Animated.View>
+
+        <Animated.View style={{ opacity: subtitleOpacity }}>
+          <Text style={loadStyles.subtitle}>Train like a pro</Text>
+        </Animated.View>
+      </View>
+
+      <Animated.View style={[loadStyles.bottomSection, { opacity: bottomOpacity }]}>
+        <View style={loadStyles.progressInfo}>
+          <Text style={loadStyles.loadingText}>Loading your experience</Text>
+          <Text style={loadStyles.percentText}>{displayPercent}%</Text>
+        </View>
+        <View style={[loadStyles.progressTrack, { width: barWidth }]}> 
+          <Animated.View style={[loadStyles.progressFill, { width: progressWidth }]}>
+            <View style={loadStyles.progressShine} />
+          </Animated.View>
+        </View>
+        <View style={loadStyles.dotsRow}>
+          {['Drills', 'AI Coach', 'Videos'].map((label, i) => (
+            <View key={label} style={loadStyles.dotItem}>
+              <View style={[
+                loadStyles.dot,
+                displayPercent > (i + 1) * 30 && loadStyles.dotActive,
+              ]} />
+              <Text style={[
+                loadStyles.dotLabel,
+                displayPercent > (i + 1) * 30 && loadStyles.dotLabelActive,
+              ]}>{label}</Text>
+            </View>
+          ))}
+        </View>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
+const loadStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0F0F1A',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  topGlow: {
+    position: 'absolute',
+    top: -120,
+    left: '50%',
+    marginLeft: -200,
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    backgroundColor: 'rgba(0, 200, 83, 0.06)',
+  },
+  centerContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  titleContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  ballOuter: {
+    width: 80,
+    height: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  ballGlow: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(0, 200, 83, 0.12)',
+  },
+  ballEmoji: {
+    fontSize: 58,
+  },
+
+  title: {
+    fontSize: 42,
+    fontWeight: '800' as const,
+    color: '#FFFFFF',
+    letterSpacing: 1.5,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#6B6B80',
+    letterSpacing: 3,
+    textTransform: 'uppercase' as const,
+    fontWeight: '500' as const,
+  },
+  bottomSection: {
+    paddingBottom: Platform.OS === 'web' ? 48 : 64,
+    width: '100%',
+    alignItems: 'center',
+  },
+  progressInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 40,
+    marginBottom: 12,
+  },
+  loadingText: {
+    fontSize: 13,
+    color: '#6B6B80',
+    fontWeight: '500' as const,
+  },
+  percentText: {
+    fontSize: 13,
+    color: '#00C853',
+    fontWeight: '700' as const,
+    fontVariant: ['tabular-nums'],
+  },
+  progressTrack: {
+    height: 4,
+    backgroundColor: '#1A1A2E',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#00C853',
+    borderRadius: 2,
+    position: 'relative',
+  },
+  progressShine: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 40,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 2,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 32,
+    marginTop: 20,
+  },
+  dotItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#2A2A40',
+  },
+  dotActive: {
+    backgroundColor: '#00C853',
+  },
+  dotLabel: {
+    fontSize: 12,
+    color: '#3A3A50',
+    fontWeight: '500' as const,
+  },
+  dotLabelActive: {
+    color: '#A0A0B0',
+  },
+});
+
+export default function RootLayout() {
+  const [showLoading, setShowLoading] = useState(true);
+  const [appReady, setAppReady] = useState(false);
+
+  const handleLoadingFinished = useCallback(() => {
+    setShowLoading(false);
+    setAppReady(true);
+  }, []);
+
+  if (showLoading) {
+    return <LoadingScreen onFinished={handleLoadingFinished} />;
+  }
+
   if (!appReady) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#0F0F1A' }} />
-    );
+    return <View style={{ flex: 1, backgroundColor: '#0F0F1A' }} />;
   }
 
   return (
