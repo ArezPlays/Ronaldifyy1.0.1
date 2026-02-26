@@ -73,7 +73,7 @@ export const [TrainingProvider, useTraining] = createContextHook(() => {
     loadProgress();
   }, []);
 
-  // Timer to track app open minutes
+  // Timer to track actual app open minutes
   useEffect(() => {
     if (isLoading) return;
     
@@ -84,18 +84,19 @@ export const [TrainingProvider, useTraining] = createContextHook(() => {
         
         const newProgress = {
           ...prev,
+          totalTrainingMinutes: prev.totalTrainingMinutes + 1,
           appOpenMinutesThisWeek: isNewWeek ? 1 : prev.appOpenMinutesThisWeek + 1,
+          weeklyMinutes: isNewWeek ? 1 : prev.weeklyMinutes + 1,
           weekStartDate: currentWeekStart,
         };
         
-        // Save in background
         AsyncStorage.setItem(TRAINING_STORAGE_KEY, JSON.stringify(newProgress)).catch(err => 
           console.log('Error saving app open time:', err)
         );
         
         return newProgress;
       });
-    }, 60000); // Every minute
+    }, 60000); // Every 60 seconds = 1 real minute
     
     return () => clearInterval(interval);
   }, [isLoading]);
@@ -220,11 +221,11 @@ export const [TrainingProvider, useTraining] = createContextHook(() => {
       completedDrills: progress.completedDrills.includes(drillId) 
         ? progress.completedDrills 
         : [...progress.completedDrills, drillId],
-      totalTrainingMinutes: progress.totalTrainingMinutes + duration,
+      totalTrainingMinutes: progress.totalTrainingMinutes,
       drillsCompletedToday: isNewDay ? 1 : progress.drillsCompletedToday + 1,
       weeklyProgress: isNewWeek ? 1 : progress.weeklyProgress + 1,
       weekStartDate: currentWeekStart,
-      weeklyMinutes: isNewWeek ? duration : progress.weeklyMinutes + duration,
+      weeklyMinutes: isNewWeek ? 0 : progress.weeklyMinutes,
       sessionsThisWeek: newSessionDates.length,
       sessionDates: newSessionDates,
     };
@@ -267,7 +268,7 @@ export const [TrainingProvider, useTraining] = createContextHook(() => {
       streak: isNewDay ? progress.streak + 1 : progress.streak,
       lastTrainingDate: today,
       completedWorkouts: [...progress.completedWorkouts, workoutId],
-      totalTrainingMinutes: progress.totalTrainingMinutes + totalDuration,
+      totalTrainingMinutes: progress.totalTrainingMinutes,
       weeklyProgress: progress.weeklyProgress + 1,
     };
 
