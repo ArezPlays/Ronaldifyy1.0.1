@@ -606,33 +606,36 @@ const loadStyles = StyleSheet.create({
 
 export default function RootLayout() {
   const [showLoading, setShowLoading] = useState(true);
-  const [appReady, setAppReady] = useState(false);
+  const appFadeIn = useRef(new Animated.Value(0)).current;
 
   const handleLoadingFinished = useCallback(() => {
     setShowLoading(false);
-    setAppReady(true);
+    Animated.timing(appFadeIn, {
+      toValue: 1,
+      duration: 350,
+      useNativeDriver: true,
+    }).start();
   }, []);
 
-  if (showLoading) {
-    return <LoadingScreen onFinished={handleLoadingFinished} />;
-  }
-
-  if (!appReady) {
-    return <View style={{ flex: 1, backgroundColor: '#0F0F1A' }} />;
-  }
-
   return (
-    <AppErrorBoundary>
-      <trpc.Provider client={trpcReactClient} queryClient={queryClient}>
-        <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <AppProviders>
-              <ThemedStatusBar />
-              <RootLayoutNav />
-            </AppProviders>
-          </GestureHandlerRootView>
-        </QueryClientProvider>
-      </trpc.Provider>
-    </AppErrorBoundary>
+    <View style={{ flex: 1, backgroundColor: '#0F0F1A' }}>
+      {showLoading && <LoadingScreen onFinished={handleLoadingFinished} />}
+      {!showLoading && (
+        <Animated.View style={{ flex: 1, opacity: appFadeIn }}>
+          <AppErrorBoundary>
+            <trpc.Provider client={trpcReactClient} queryClient={queryClient}>
+              <QueryClientProvider client={queryClient}>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <AppProviders>
+                    <ThemedStatusBar />
+                    <RootLayoutNav />
+                  </AppProviders>
+                </GestureHandlerRootView>
+              </QueryClientProvider>
+            </trpc.Provider>
+          </AppErrorBoundary>
+        </Animated.View>
+      )}
+    </View>
   );
 }
