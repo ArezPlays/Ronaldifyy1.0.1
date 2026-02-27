@@ -32,7 +32,7 @@ import { useTraining } from '@/contexts/TrainingContext';
 export default function DrillSessionScreen() {
   const { drillId } = useLocalSearchParams<{ drillId: string }>();
   const [currentStep, setCurrentStep] = useState(0);
-  const [isRunning, setIsRunning] = useState(false);
+  const [isRunning, setIsRunning] = useState(true);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [isCompleted, setIsCompleted] = useState(false);
@@ -67,12 +67,12 @@ export default function DrillSessionScreen() {
           Animated.timing(pulseAnim, {
             toValue: 1.05,
             duration: 1000,
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== 'web',
           }),
           Animated.timing(pulseAnim, {
             toValue: 1,
             duration: 1000,
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== 'web',
           }),
         ])
       ).start();
