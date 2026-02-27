@@ -139,8 +139,6 @@ export default function DrillsScreen() {
     }
     router.push({ pathname: '/drill-session', params: { drillId } });
     setTimeout(() => {
-      levelModalAnim.setValue(0);
-      skillModalAnim.setValue(0);
       setSelectedLevel(null);
       setSelectedSkill(null);
     }, 100);
@@ -157,41 +155,19 @@ export default function DrillsScreen() {
 
   const openSkillPath = useCallback((skillId: TrainingGoal) => {
     setSelectedSkill(skillId);
-    Animated.timing(skillModalAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start();
-  }, [skillModalAnim]);
+  }, []);
 
   const closeSkillModal = useCallback(() => {
-    Animated.timing(skillModalAnim, {
-      toValue: 0,
-      duration: 250,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start(() => {
-      setSelectedSkill(null);
-    });
-  }, [skillModalAnim]);
+    setSelectedSkill(null);
+  }, []);
 
   const openLevel = useCallback((level: SkillMasteryLevel) => {
     setSelectedLevel(level);
-    Animated.timing(levelModalAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start();
-  }, [levelModalAnim]);
+  }, []);
 
   const closeLevel = useCallback(() => {
-    Animated.timing(levelModalAnim, {
-      toValue: 0,
-      duration: 250,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start(() => {
-      setSelectedLevel(null);
-    });
-  }, [levelModalAnim]);
+    setSelectedLevel(null);
+  }, []);
 
   const getLevelCompletionStatus = useCallback((path: SkillMasteryPath, level: SkillMasteryLevel) => {
     const completedCount = level.drillIds.filter((id: string) => isDrillCompleted(id)).length;
@@ -270,8 +246,7 @@ export default function DrillsScreen() {
           if (isProLocked) {
             router.push('/paywall');
           } else if (isUnlocked) {
-            closeSkillModal();
-            setTimeout(() => openLevel(level), 280);
+            openLevel(level);
           }
         }}
         activeOpacity={canAccess ? 0.7 : 0.8}
@@ -537,13 +512,13 @@ export default function DrillsScreen() {
       {/* Skill Path Modal */}
       <Modal
         visible={selectedSkill !== null && selectedLevel === null}
-        animationType="none"
+        animationType="slide"
         transparent={true}
         onRequestClose={closeSkillModal}
       >
         {selectedSkillPath && (
           <View style={styles.modalOverlay}>
-            <Animated.View style={[styles.modalContainer, { backgroundColor: colors.background, opacity: skillModalAnim, transform: [{ translateY: skillModalAnim.interpolate({ inputRange: [0, 1], outputRange: [600, 0] }) }] }]}>
+            <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
             <LinearGradient
               colors={[`${selectedSkillPath.color}30`, colors.background]}
               style={styles.modalHeader}
@@ -595,7 +570,7 @@ export default function DrillsScreen() {
               
               {selectedSkillPath.levels.map(level => renderLevelItem(selectedSkillPath, level))}
             </ScrollView>
-          </Animated.View>
+          </View>
           </View>
         )}
       </Modal>
@@ -603,13 +578,13 @@ export default function DrillsScreen() {
       {/* Level Drills Modal */}
       <Modal
         visible={selectedLevel !== null}
-        animationType="none"
+        animationType="slide"
         transparent={true}
         onRequestClose={closeLevel}
       >
         {selectedLevel && selectedSkillPath && (
           <View style={styles.modalOverlay}>
-            <Animated.View style={[styles.modalContainer, { backgroundColor: colors.background, opacity: levelModalAnim, transform: [{ translateY: levelModalAnim.interpolate({ inputRange: [0, 1], outputRange: [600, 0] }) }] }]}>
+            <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
             <LinearGradient
               colors={[`${selectedSkillPath.color}30`, colors.background]}
               style={styles.modalHeader}
@@ -727,7 +702,7 @@ export default function DrillsScreen() {
                 );
               })}
             </ScrollView>
-          </Animated.View>
+          </View>
           </View>
         )}
       </Modal>
