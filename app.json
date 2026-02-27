@@ -14,10 +14,10 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "app.rork.ronaldify-5ml8ava",
       "usesAppleSignIn": true,
-      "buildNumber": "8",
+      "buildNumber": "9",
       "infoPlist": {
         "NSCameraUsageDescription": "Ronaldify needs access to your camera to record training videos for AI analysis.",
         "NSPhotoLibraryUsageDescription": "Ronaldify needs access to your photo library to select training videos for AI analysis.",
