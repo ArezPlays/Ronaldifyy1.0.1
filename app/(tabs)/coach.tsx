@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Keyboard,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Bot, Send, Sparkles, Lock, Flame, Trophy, Target, Zap, TrendingUp, MessageCircle, Crown } from 'lucide-react-native';
@@ -40,6 +41,7 @@ export default function CoachScreen() {
   const { data: personalizationData } = usePersonalization();
   const { t } = useLanguage();
   const { progress, dailyWorkout } = useTraining();
+  const insets = useSafeAreaInsets();
   
   const [input, setInput] = useState('');
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
@@ -101,7 +103,9 @@ export default function CoachScreen() {
     }
   }, [userMessageCount]);
 
-  const styles = createStyles(colors);
+  const TAB_BAR_HEIGHT = 85;
+  const bottomPadding = TAB_BAR_HEIGHT + Math.max(insets.bottom, 0);
+  const styles = createStyles(colors, bottomPadding);
 
   const userName = personalizationData?.name || profile?.name || 'Champion';
   const userPosition = personalizationData?.position || profile?.position || 'Not specified';
@@ -547,7 +551,7 @@ If they ask about drills, tell them to check the Drills tab.`;
           )}
 
           {hasReachedLimit ? (
-            <View style={styles.limitContainer}>
+            <View style={[styles.limitContainer, { paddingBottom: bottomPadding + 8 }]}>
               <View style={styles.limitCard}>
                 <View style={styles.limitIconRow}>
                   <View style={styles.limitIconCircle}>
@@ -571,7 +575,7 @@ If they ask about drills, tell them to check the Drills tab.`;
               </View>
             </View>
           ) : (
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, { paddingBottom: bottomPadding + 8 }]}>
               {!isPro && messageCountLoaded && (
                 <View style={styles.msgCounterRow}>
                   <MessageCircle size={14} color={remainingMessages <= 2 ? '#FF6B35' : colors.textMuted} />
@@ -621,7 +625,7 @@ If they ask about drills, tell them to check the Drills tab.`;
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, bottomPadding: number) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -867,7 +871,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   inputContainer: {
     padding: 16,
-    paddingBottom: Platform.OS === 'ios' ? 16 : 90,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.background,
@@ -909,7 +912,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   limitContainer: {
     padding: 16,
-    paddingBottom: Platform.OS === 'ios' ? 16 : 90,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.background,
