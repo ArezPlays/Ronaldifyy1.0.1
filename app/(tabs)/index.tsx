@@ -6,7 +6,8 @@ import {
   ScrollView, 
   TouchableOpacity, 
   Animated,
-  Dimensions 
+  Dimensions,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,6 +24,7 @@ import {
   Lock,
   Sparkles
 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useUser } from '@/contexts/UserContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -60,12 +62,12 @@ export default function HomeScreen() {
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 500,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
         duration: 500,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }),
     ]).start();
   }, [fadeAnim, slideAnim]);
@@ -111,7 +113,7 @@ export default function HomeScreen() {
               ) : (
                 <TouchableOpacity 
                   style={styles.upgradeButton}
-                  onPress={() => router.push('/paywall')}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/paywall'); }}
                 >
                   <Text style={styles.upgradeText}>{t.upgrade}</Text>
                 </TouchableOpacity>
@@ -183,7 +185,7 @@ export default function HomeScreen() {
             <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
               <TouchableOpacity 
                 style={styles.dailyGoalCard}
-                onPress={() => router.push('/(tabs)/drills')}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/drills'); }}
                 activeOpacity={0.8}
               >
                 <View style={styles.dailyGoalHeader}>
@@ -223,7 +225,7 @@ export default function HomeScreen() {
             <View style={styles.quickActions}>
               <TouchableOpacity 
                 style={styles.quickActionMain}
-                onPress={() => router.push('/(tabs)/drills')}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/drills'); }}
                 activeOpacity={0.8}
               >
                 <LinearGradient
@@ -243,7 +245,7 @@ export default function HomeScreen() {
               <View style={styles.quickActionsSecondary}>
                 <TouchableOpacity 
                   style={styles.quickAction}
-                  onPress={() => router.push('/(tabs)/coach')}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/coach'); }}
                   activeOpacity={0.8}
                 >
                   <View style={[styles.quickActionIcon, { backgroundColor: '#6B4EFF20' }]}>
@@ -254,7 +256,7 @@ export default function HomeScreen() {
 
                 <TouchableOpacity 
                   style={styles.quickAction}
-                  onPress={() => router.push('/(tabs)/video')}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/video'); }}
                   activeOpacity={0.8}
                 >
                   <View style={[styles.quickActionIcon, { backgroundColor: '#FF6B3520' }]}>
@@ -274,7 +276,7 @@ export default function HomeScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{t.yourSkills}</Text>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/drills')}>
+              <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/drills'); }}>
                 <Text style={styles.seeAllText}>{t.seeAll}</Text>
               </TouchableOpacity>
             </View>
@@ -287,7 +289,7 @@ export default function HomeScreen() {
                   <TouchableOpacity
                     key={skill.id}
                     style={styles.skillCard}
-                    onPress={() => router.push('/(tabs)/drills')}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/drills'); }}
                     activeOpacity={0.8}
                   >
                     <View style={[styles.skillIconSmall, { backgroundColor: path.color }]}>
@@ -315,7 +317,7 @@ export default function HomeScreen() {
           {!isPro && (
             <TouchableOpacity 
               style={styles.proCard}
-              onPress={() => router.push('/paywall')}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/paywall'); }}
               activeOpacity={0.8}
             >
               <LinearGradient
