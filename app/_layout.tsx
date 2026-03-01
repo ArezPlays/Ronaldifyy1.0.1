@@ -6,7 +6,6 @@ import React, { useEffect, useRef, useState, useCallback, Component } from "reac
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions, Platform } from "react-native";
-import { Image } from 'react-native';
 
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { UserProvider, useUser } from "@/contexts/UserContext";
@@ -369,7 +368,9 @@ function LoadingScreen({ onFinished }: { onFinished: () => void }) {
   const barWidth = screenWidth - 80;
 
   useEffect(() => {
-    SplashScreen.hideAsync().catch(() => {});
+    const splashTimer = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {});
+    }, 100);
 
     Animated.sequence([
       Animated.parallel([
@@ -411,6 +412,7 @@ function LoadingScreen({ onFinished }: { onFinished: () => void }) {
     }, 2800);
 
     return () => {
+      clearTimeout(splashTimer);
       clearTimeout(finishTimer);
       progress.removeListener(listenerId);
       pulse.stop();
