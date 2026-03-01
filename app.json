@@ -17,7 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "app.rork.ronaldify-5ml8ava",
       "usesAppleSignIn": true,
-      "buildNumber": "9",
+      "buildNumber": "10",
       "infoPlist": {
         "NSCameraUsageDescription": "Ronaldify needs access to your camera to record training videos for AI analysis.",
         "NSPhotoLibraryUsageDescription": "Ronaldify needs access to your photo library to select training videos for AI analysis.",
