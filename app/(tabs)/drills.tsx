@@ -133,6 +133,7 @@ export default function DrillsScreen() {
   };
 
   const handleStartDrill = useCallback((drillId: string, isLocked: boolean) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (isLocked) {
       router.push('/paywall');
       return;
@@ -145,6 +146,7 @@ export default function DrillsScreen() {
   }, [router]);
 
   const handleStartWorkout = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (dailyWorkout && dailyWorkout.drillIds.length > 0) {
       const firstDrillId = dailyWorkout.drillIds[0];
       const drill = getDrillById(firstDrillId);
@@ -154,18 +156,22 @@ export default function DrillsScreen() {
   }, [dailyWorkout, isPro, handleStartDrill]);
 
   const openSkillPath = useCallback((skillId: TrainingGoal) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedSkill(skillId);
   }, []);
 
   const closeSkillModal = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedSkill(null);
   }, []);
 
   const openLevel = useCallback((level: SkillMasteryLevel) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedLevel(level);
   }, []);
 
   const closeLevel = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedLevel(null);
   }, []);
 
