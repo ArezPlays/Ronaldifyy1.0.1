@@ -24,6 +24,7 @@ import {
   Shield,
   Gift
 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { useSubscription, SubscriptionPackage, TrialInfo } from '@/contexts/SubscriptionContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -87,6 +88,7 @@ export default function PaywallScreen() {
 
   const handlePurchase = async () => {
     if (!selectedPackage) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     if (!selectedPackage.rcPackage) {
       Alert.alert(
@@ -110,6 +112,7 @@ export default function PaywallScreen() {
   };
 
   const handleRestore = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     console.log('Starting restore...');
     const success = await restorePurchases();
     
@@ -209,7 +212,7 @@ export default function PaywallScreen() {
                       dynamicStyles.packageCard,
                       isSelected && dynamicStyles.packageCardSelected
                     ]}
-                    onPress={() => setSelectedPackage(pkg)}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedPackage(pkg); }}
                     disabled={isProcessing}
                     activeOpacity={0.7}
                   >
