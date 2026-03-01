@@ -15,6 +15,7 @@ import {
   Shield,
   FileText
 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUser } from '@/contexts/UserContext';
@@ -37,6 +38,7 @@ export default function ProfileScreen() {
     : t.notSet;
 
   const handleSignOut = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       t.signOut,
       t.signOutConfirm,
@@ -216,7 +218,7 @@ function MenuItem({
 }) {
   const menuStyles = createMenuItemStyles(colors);
   return (
-    <TouchableOpacity style={menuStyles.menuItem} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity style={menuStyles.menuItem} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }} activeOpacity={0.7}>
       <View style={menuStyles.menuItemLeft}>
         {icon}
         <View>
