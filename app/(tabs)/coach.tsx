@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Bot, Send, Sparkles, Lock, Flame, Trophy, Target, Zap, TrendingUp, MessageCircle, Crown } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useUser } from '@/contexts/UserContext';
@@ -295,6 +296,7 @@ If they ask about drills, tell them to check the Drills tab.`;
       await incrementMessageCount();
     }
 
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     console.log('Sending message to AI Coach:', userMessage);
 
     const messageWithContext = `${systemContext}\n\n${SYSTEM_CONTEXT_MARKER}${userMessage}`;
@@ -320,6 +322,7 @@ If they ask about drills, tell them to check the Drills tab.`;
       await incrementMessageCount();
     }
 
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     console.log('Sending quick prompt to AI Coach:', prompt);
 
     const messageWithContext = `${systemContext}\n\n${SYSTEM_CONTEXT_MARKER}${prompt}`;
