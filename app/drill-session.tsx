@@ -137,6 +137,7 @@ export default function DrillSessionScreen() {
   };
 
   const handleClose = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (timerRef.current) clearInterval(timerRef.current);
     router.back();
   };
@@ -324,7 +325,7 @@ export default function DrillSessionScreen() {
           <Animated.View style={{ transform: [{ scale: isRunning ? pulseAnim : 1 }], flex: 1 }}>
             <TouchableOpacity
               style={[dynamicStyles.actionButton, isRunning && dynamicStyles.actionButtonPaused]}
-              onPress={() => setIsRunning(!isRunning)}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsRunning(!isRunning); }}
               activeOpacity={0.8}
             >
               {isRunning ? (
